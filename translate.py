@@ -1,60 +1,25 @@
 import requests
 
-# 발급받은 실제 키를 여기에 입력
 API_KEY_ID = "f6oizljb7n"
 API_KEY = "cRAC9CTqXmLsERKeT9bwpcbn1fc75OcoACkAh4G3"
 
-def translate_to_korean(news_list):
-    translated_list = []
+headers = {
+    "X-NCP-APIGW-API-KEY-ID": API_KEY_ID,
+    "X-NCP-APIGW-API-KEY": API_KEY,
+    "Content-Type": "application/x-www-form-urlencoded"
+}
 
-    for item in news_list:
-        text = item['content'] or item['title'] or ""
-        if not text.strip():
-            translated_list.append({
-                "title": item['title'],
-                "content": "[번역 실패: 내용 없음]"
-            })
-            continue
+data = {
+    "source": "ja",
+    "target": "ko",
+    "text": "おはようございます"
+}
 
-        headers = {
-            "X-NCP-APIGW-API-KEY-ID": API_KEY_ID,
-            "X-NCP-APIGW-API-KEY": API_KEY,
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
+response = requests.post(
+    "https://naveropenapi.apigw.ntruss.com/nmt/v1/translation",
+    headers=headers,
+    data=data
+)
 
-        data = {
-            "source": "ja",
-            "target": "ko",
-            "text": text
-        }
-
-        try:
-            response = requests.post(
-                "https://naveropenapi.apigw.ntruss.com/nmt/v1/translation",
-                headers=headers,
-                data=data
-            )
-
-            print(f"[DEBUG] 응답 상태 코드: {response.status_code}")
-            print(f"[DEBUG] 응답 본문: {response.text}")
-
-            result = response.json()
-        
-            if 'message' in result and 'result' in result['message']:
-                translated_text = result['message']['result']['translatedText']
-            else:
-                raise ValueError(f"API 응답 오류: {result}")
-
-            translated_list.append({
-                "title": item['title'],
-                "content": translated_text
-            })
-
-        except Exception as e:
-            print("번역 실패:", e)
-            translated_list.append({
-                "title": item['title'],
-                "content": "[번역 실패]"
-            })
-
-    return translated_list
+print("응답 코드:", response.status_code)
+print("응답 내용:", response.text)
