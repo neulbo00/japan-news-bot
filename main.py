@@ -28,7 +28,7 @@ def main():
     translated_news = translate_to_korean(news)
     print("[한글 번역 결과]")
 
-translated_news.sort(key=assign_priority)
+    translated_news.sort(key=assign_priority)
     # 3. 출력
     for i, article in enumerate(translated_news, 1):
         print(f"\n📰 {i}. {article['title']}")
