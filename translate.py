@@ -16,10 +16,12 @@ def translate_to_korean(news_list):
             })
             continue
 
-        headers = {
-            "X-NCP-APIGW-API-KEY-ID": API_KEY_ID,
-            "X-NCP-APIGW-API-KEY": API_KEY
-        }
+    headers = {
+        "X-NCP-APIGW-API-KEY-ID": API_KEY_ID,
+        "X-NCP-APIGW-API-KEY": API_KEY,
+        "Content-Type": "application/x-www-form-urlencoded"
+       }
+
 
         data = {
             "source": "ja",
