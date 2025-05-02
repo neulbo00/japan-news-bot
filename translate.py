@@ -1,36 +1,48 @@
-from googletrans import Translator
+import requests
+
+# 발급받은 정보로 교체
+CLIENT_ID = "f6oizljb7n"
+CLIENT_SECRET = "cRAC9CTqXmLsERKeT9bwpcbn1fc75OcoACkAh4G3"
 
 def translate_to_korean(news_list):
-    translator = Translator()
     translated_list = []
 
     for item in news_list:
+        text = item['content'] or item['title'] or ""
+        if not text.strip():
+            translated_list.append({
+                "title": item['title'],
+                "content": "[번역 실패: 내용 없음]"
+            })
+            continue
+
+        headers = {
+            "X-Naver-Client-Id": CLIENT_ID,
+            "X-Naver-Client-Secret": CLIENT_SECRET
+        }
+
+        data = {
+            "source": "ja",
+            "target": "ko",
+            "text": text
+        }
+
         try:
-            title = item['title'] or ""
-            content = item['content'] or ""
+            response = requests.post("https://openapi.naver.com/v1/papago/n2mt",
+                                     headers=headers, data=data)
+            result = response.json()
+            translated_text = result['message']['result']['translatedText']
 
-            # 제목과 내용 중에서 번역 가능한 부분 선택
-            if content.strip():
-                target_text = content
-            elif title.strip():
-                target_text = title
-            else:
-                raise ValueError("내용 없음")
-
-            result = translator.translate(target_text, src='ja', dest='ko')
-
-            translated_item = {
-                "title": title,
-                "content": result.text
-            }
+            translated_list.append({
+                "title": item['title'],
+                "content": translated_text
+            })
 
         except Exception as e:
             print("번역 실패:", e)
-            translated_item = {
+            translated_list.append({
                 "title": item['title'],
                 "content": "[번역 실패]"
-            }
-
-        translated_list.append(translated_item)
+            })
 
     return translated_list
