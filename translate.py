@@ -31,7 +31,12 @@ def translate_to_korean(news_list):
             response = requests.post("https://openapi.naver.com/v1/papago/n2mt",
                                      headers=headers, data=data)
             result = response.json()
-            translated_text = result['message']['result']['translatedText']
+
+            # 'message' 키 확인
+            if 'message' in result and 'result' in result['message']:
+                translated_text = result['message']['result']['translatedText']
+            else:
+                raise ValueError(f"API 응답 오류: {result}")
 
             translated_list.append({
                 "title": item['title'],
