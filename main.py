@@ -17,3 +17,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+from blog_post import post_to_naver_blog
+...
+    # 4. 블로그 게시 (지금은 출력만)
+    post_to_naver_blog(translated_news)
