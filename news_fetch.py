@@ -7,9 +7,9 @@ def fetch_japan_news():
     url = "https://newsapi.org/v2/top-headlines"
     params = {
         "apiKey": API_KEY,
-        "q": "Japan",            # "Japan"이 포함된 뉴스
-        "language": "ja",        # 일본어 뉴스
-        "pageSize": 5            # 최대 5개 기사 (필요 시 조정 가능)
+        "country": "jp",        # 일본 국가 코드 사용
+        "language": "ja",       # 일본어
+        "pageSize": 5           # 기사 최대 수
     }
 
     response = requests.get(url, params=params)
