@@ -17,8 +17,8 @@ def translate_to_korean(news_list):
             continue
 
         headers = {
-            "X-NCP-APIGW-API-KEY-ID": CLIENT_ID,
-            "X-NCP-APIGW-API-KEY": CLIENT_SECRET
+            "X-Naver-Client-Id": CLIENT_ID,
+            "X-Naver-Client-Secret": CLIENT_SECRET
         }
 
         data = {
@@ -29,7 +29,7 @@ def translate_to_korean(news_list):
 
         try:
             response = requests.post(
-                "https://naveropenapi.apigw.ntruss.com/nmt/v1/translation",
+                "https://openapi.naver.com/v1/papago/n2mt",
                 headers=headers,
                 data=data
             )
