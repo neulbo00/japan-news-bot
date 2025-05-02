@@ -7,26 +7,26 @@ API_KEY = "cRAC9CTqXmLsERKeT9bwpcbn1fc75OcoACkAh4G3"
 def translate_to_korean(news_list):
     translated_list = []
 
-   for item in news_list:
-    text = item['content'] or item['title'] or ""
-    if not text.strip():
-        translated_list.append({
-            "title": item['title'],
-            "content": "[번역 실패: 내용 없음]"
-        })
-        continue
+    for item in news_list:
+        text = item['content'] or item['title'] or ""
+        if not text.strip():
+            translated_list.append({
+                "title": item['title'],
+                "content": "[번역 실패: 내용 없음]"
+            })
+            continue
 
-    headers = {
-        "X-NCP-APIGW-API-KEY-ID": API_KEY_ID,
-        "X-NCP-APIGW-API-KEY": API_KEY,
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
+        headers = {
+            "X-NCP-APIGW-API-KEY-ID": API_KEY_ID,
+            "X-NCP-APIGW-API-KEY": API_KEY,
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
 
-    data = {
-        "source": "ja",
-        "target": "ko",
-        "text": text
-    } 
+        data = {
+            "source": "ja",
+            "target": "ko",
+            "text": text
+        }
 
         try:
             response = requests.post(
@@ -34,8 +34,8 @@ def translate_to_korean(news_list):
                 headers=headers,
                 data=data
             )
-            result = response.json()
 
+            result = response.json()
             if 'message' in result and 'result' in result['message']:
                 translated_text = result['message']['result']['translatedText']
             else:
