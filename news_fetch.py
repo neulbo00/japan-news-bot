@@ -4,12 +4,13 @@ import requests
 API_KEY = "3255f9616b8d4400bbf2d01d4818af9a"
 
 def fetch_japan_news():
-    url = "https://newsapi.org/v2/top-headlines"
+    url = "https://newsapi.org/v2/everything"
     params = {
         "apiKey": API_KEY,
-        "country": "jp",        # 일본 국가 코드 사용
-        "language": "ja",       # 일본어
-        "pageSize": 5           # 기사 최대 수
+        "q": "Japan OR 일본",   # 일본 관련 뉴스로 범위 넓히기
+        "sortBy": "publishedAt",
+        "language": "en",       # 일단 영어 뉴스라도 받아보는 방식
+        "pageSize": 5
     }
 
     response = requests.get(url, params=params)
