@@ -1,8 +1,8 @@
 import requests
 
-# 발급받은 정보로 교체
-CLIENT_ID = "f6oizljb7n"
-CLIENT_SECRET = "cRAC9CTqXmLsERKeT9bwpcbn1fc75OcoACkAh4G3"
+# 발급받은 실제 키를 여기에 입력
+API_KEY_ID = "f6oizljb7n"
+API_KEY = "cRAC9CTqXmLsERKeT9bwpcbn1fc75OcoACkAh4G3"
 
 def translate_to_korean(news_list):
     translated_list = []
@@ -17,8 +17,8 @@ def translate_to_korean(news_list):
             continue
 
         headers = {
-            "X-Naver-Client-Id": CLIENT_ID,
-            "X-Naver-Client-Secret": CLIENT_SECRET
+            "X-NCP-APIGW-API-KEY-ID": API_KEY_ID,
+            "X-NCP-APIGW-API-KEY": API_KEY
         }
 
         data = {
@@ -29,7 +29,7 @@ def translate_to_korean(news_list):
 
         try:
             response = requests.post(
-                "https://openapi.naver.com/v1/papago/n2mt",
+                "https://naveropenapi.apigw.ntruss.com/nmt/v1/translation",
                 headers=headers,
                 data=data
             )
