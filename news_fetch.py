@@ -15,6 +15,8 @@ def fetch_japan_news():
     response = requests.get(url, params=params)
     data = response.json()
 
+    print("[DEBUG] 응답 내용:", data)
+    
     news_list = []
     for article in data.get("articles", []):
         news_list.append({
