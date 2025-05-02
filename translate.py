@@ -6,15 +6,21 @@ def translate_to_korean(news_list):
 
     for item in news_list:
         try:
-            # 빈 문자열이나 None 방지 처리
+            title = item['title'] or ""
             content = item['content'] or ""
-            if not content.strip():
+
+            # 제목과 내용 중에서 번역 가능한 부분 선택
+            if content.strip():
+                target_text = content
+            elif title.strip():
+                target_text = title
+            else:
                 raise ValueError("내용 없음")
 
-            result = translator.translate(content, src='ja', dest='ko')
+            result = translator.translate(target_text, src='ja', dest='ko')
 
             translated_item = {
-                "title": item['title'],
+                "title": title,
                 "content": result.text
             }
 
