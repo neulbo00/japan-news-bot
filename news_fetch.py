@@ -1,28 +1,22 @@
 import requests
-
-# 발급받은 API 키를 여기에 입력
-API_KEY = "3255f9616b8d4400bbf2d01d4818af9a"
+import xml.etree.ElementTree as ET
 
 def fetch_japan_news():
-    url = "https://newsapi.org/v2/everything"
-    params = {
-        "apiKey": API_KEY,
-        "q": "Japan OR 일본",   # 일본 관련 뉴스로 범위 넓히기
-        "sortBy": "publishedAt",
-        "language": "en",       # 일단 영어 뉴스라도 받아보는 방식
-        "pageSize": 5
-    }
+    url = "https://news.yahoo.co.jp/rss/topics/top-picks.xml"
+    response = requests.get(url)
+    response.encoding = 'utf-8'  # 일본어 대응
 
-    response = requests.get(url, params=params)
-    data = response.json()
+    # XML 파싱
+    root = ET.fromstring(response.text)
+    items = root.findall(".//item")
 
-    print("[DEBUG] 응답 내용:", data)
-    
     news_list = []
-    for article in data.get("articles", []):
+    for item in items[:5]:  # 최대 5개 기사만 수집
+        title = item.find("title").text
+        description = item.find("description").text
         news_list.append({
-            "title": article["title"],
-            "content": article["description"] or article["content"] or ""
+            "title": title.strip(),
+            "content": description.strip()
         })
 
     return news_list
