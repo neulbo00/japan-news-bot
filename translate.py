@@ -35,7 +35,11 @@ def translate_to_korean(news_list):
                 data=data
             )
 
+            print(f"[DEBUG] 응답 상태 코드: {response.status_code}")
+            print(f"[DEBUG] 응답 본문: {response.text}")
+
             result = response.json()
+        
             if 'message' in result and 'result' in result['message']:
                 translated_text = result['message']['result']['translatedText']
             else:
