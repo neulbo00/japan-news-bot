@@ -1,7 +1,7 @@
 import requests
 
 # 발급받은 API 키를 여기에 입력
-API_KEY = 3255f9616b8d4400bbf2d01d4818af9a
+API_KEY = "3255f9616b8d4400bbf2d01d4818af9a"
 
 def fetch_japan_news():
     url = "https://newsapi.org/v2/top-headlines"
