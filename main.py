@@ -1,3 +1,20 @@
+def assign_priority(article):
+    title = article['title']
+    content = article['content']
+    text = (title or "") + (content or "")
+
+    # 우선순위 부여 (숫자가 낮을수록 먼저 출력)
+    if "한국" in text or "韓国" in text:
+        return 0
+    elif "경제" in text:
+        return 1
+    elif "사회" in text:
+        return 2
+    elif "정치" in text:
+        return 3
+    else:
+        return 4
+        
 from news_fetch import fetch_japan_news
 from translate import translate_to_korean
 from blog_post import post_to_naver_blog  # ← 이 줄 위치는 맨 위로 옮깁니다
@@ -11,6 +28,7 @@ def main():
     translated_news = translate_to_korean(news)
     print("[한글 번역 결과]")
 
+translated_news.sort(key=assign_priority)
     # 3. 출력
     for i, article in enumerate(translated_news, 1):
         print(f"\n📰 {i}. {article['title']}")
@@ -21,3 +39,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
