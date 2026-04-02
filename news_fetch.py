@@ -1,25 +1,60 @@
+import hashlib
 import requests
 import xml.etree.ElementTree as ET
+from config import MAX_NEWS_PER_SOURCE
+
+RSS_SOURCES = [
+    {"name": "Yahoo Japan", "url": "https://news.yahoo.co.jp/rss/topics/top-picks.xml"},
+    {"name": "NHK",         "url": "https://www3.nhk.or.jp/rss/news/cat0.xml"},
+    {"name": "교도통신",     "url": "https://feeds.kyodonews.net/rss/news.xml"},
+]
+
+def _parse_rss(source):
+    try:
+        res = requests.get(source["url"], timeout=10)
+        res.encoding = "utf-8"
+        root = ET.fromstring(res.text)
+        items = root.findall(".//item")[:MAX_NEWS_PER_SOURCE]
+        result = []
+        for item in items:
+            title = (item.findtext("title") or "").strip()
+            desc  = (item.findtext("description") or "").strip()
+            link  = (item.findtext("link") or "").strip()
+            if not title or not link:
+                continue
+            result.append({
+                "source":  source["name"],
+                "title":   title,
+                "content": desc,
+                "link":    link,
+                "id":      hashlib.md5(link.encode()).hexdigest(),
+            })
+        return result
+    except Exception as e:
+        print(f"[수집 실패] {source['name']}: {e}")
+        return []
+
+def assign_priority(article):
+    text = (article["title"] or "") + (article["content"] or "")
+    if any(k in text for k in ["한국", "韓国", "朝鮮", "Korea"]):
+        return 0
+    elif any(k in text for k in ["経済", "株", "円", "GDP", "景気"]):
+        return 1
+    elif any(k in text for k in ["社会", "事件", "事故", "災害"]):
+        return 2
+    elif any(k in text for k in ["政治", "選挙", "国会", "首相"]):
+        return 3
+    else:
+        return 4
 
 def fetch_japan_news():
-    url = "https://news.yahoo.co.jp/rss/topics/top-picks.xml"
-    response = requests.get(url)
-    response.encoding = 'utf-8'
-
-    root = ET.fromstring(response.text)
-    items = root.findall(".//item")
-
-    news_list = []
-    for item in items[:5]:
-        title_elem = item.find("title")
-        desc_elem = item.find("description")
-
-        title = title_elem.text.strip() if title_elem is not None else "[제목 없음]"
-        description = desc_elem.text.strip() if desc_elem is not None else ""
-
-        news_list.append({
-            "title": title,
-            "content": description
-        })
-
-    return news_list
+    all_news = []
+    seen_ids = set()
+    for source in RSS_SOURCES:
+        for article in _parse_rss(source):
+            if article["id"] not in seen_ids:
+                seen_ids.add(article["id"])
+                all_news.append(article)
+    all_news.sort(key=assign_priority)
+    print(f"[수집 완료] 총 {len(all_news)}건 (중복 제거 후)")
+    return all_news
