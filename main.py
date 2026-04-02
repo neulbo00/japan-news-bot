@@ -1,42 +1,46 @@
-def assign_priority(article):
-    title = article['title']
-    content = article['content']
-    text = (title or "") + (content or "")
+import schedule
+import time
+from datetime import datetime
 
-    # 우선순위 부여 (숫자가 낮을수록 먼저 출력)
-    if "한국" in text or "韓国" in text:
-        return 0
-    elif "경제" in text:
-        return 1
-    elif "사회" in text:
-        return 2
-    elif "정치" in text:
-        return 3
-    else:
-        return 4
-        
 from news_fetch import fetch_japan_news
-from translate import translate_to_korean
-from blog_post import post_to_naver_blog  # ← 이 줄 위치는 맨 위로 옮깁니다
+from gemini_process import translate_all
+from tistory_post import post_all
+from telegram_notify import notify_done
+from config import SCHEDULE_HOURS
 
-def main():
-    # 1. 일본 뉴스 수집
+def run_pipeline():
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    print(f"\n{'='*50}")
+    print(f"[시작] {now}")
+    print(f"{'='*50}")
+
+    # 1. 뉴스 수집
     news = fetch_japan_news()
-    print(f"[수집된 뉴스 {len(news)}건]")
+    if not news:
+        print("[종료] 수집된 뉴스 없음")
+        return
 
-    # 2. 뉴스 번역
-    translated_news = translate_to_korean(news)
-    print("[한글 번역 결과]")
+    # 2. Gemini 번역+요약
+    translated = translate_all(news)
 
-    translated_news.sort(key=assign_priority)
-    # 3. 출력
-    for i, article in enumerate(translated_news, 1):
-        print(f"\n📰 {i}. {article['title']}")
-        print(article['content'])
+    # 3. 티스토리 게시
+    posted = post_all(translated)
 
-    # 4. 블로그 게시 (지금은 출력만)
-    post_to_naver_blog(translated_news)   # ← 이 줄이 들여쓰기 되어 있어야 합니다!
+    # 4. 텔레그램 알림
+    notify_done(posted)
+
+    print(f"[완료] {len(posted)}/{len(news)}건 게시")
 
 if __name__ == "__main__":
-    main()
-    
+    print("[Japan News Bot 시작]")
+    print(f"스케줄: 매일 {SCHEDULE_HOURS}시 실행\n")
+
+    for hour in SCHEDULE_HOURS:
+        schedule.every().day.at(f"{hour:02d}:00").do(run_pipeline)
+
+    # 시작 시 1회 즉시 실행 (테스트용 — 필요 없으면 주석처리)
+    # run_pipeline()
+
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
