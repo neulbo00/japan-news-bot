@@ -34,19 +34,6 @@ def _parse_rss(source):
         print(f"[수집 실패] {source['name']}: {e}")
         return []
 
-def assign_priority(article):
-    text = (article["title"] or "") + (article["content"] or "")
-    if any(k in text for k in ["한국", "韓国", "朝鮮", "Korea"]):
-        return 0
-    elif any(k in text for k in ["経済", "株", "円", "GDP", "景気"]):
-        return 1
-    elif any(k in text for k in ["社会", "事件", "事故", "災害"]):
-        return 2
-    elif any(k in text for k in ["政治", "選挙", "国会", "首相"]):
-        return 3
-    else:
-        return 4
-
 def fetch_japan_news():
     all_news = []
     seen_ids = set()
@@ -55,6 +42,6 @@ def fetch_japan_news():
             if article["id"] not in seen_ids:
                 seen_ids.add(article["id"])
                 all_news.append(article)
-    all_news.sort(key=assign_priority)
     print(f"[수집 완료] 총 {len(all_news)}건 (중복 제거 후)")
+    # 정렬은 Gemini 번역 후 importance_score 기준으로 처리
     return all_news
