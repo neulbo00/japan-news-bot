@@ -4,9 +4,10 @@ from datetime import datetime
 
 from news_fetch import fetch_japan_news
 from gemini_process import translate_all
-from tistory_post import post_all
+from blogger_post import post_all
 from telegram_notify import notify_done
 from config import SCHEDULE_HOURS
+
 
 def run_pipeline():
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -23,13 +24,14 @@ def run_pipeline():
     # 2. Gemini 번역+요약
     translated = translate_all(news)
 
-    # 3. 티스토리 게시
+    # 3. Blogger 게시
     posted = post_all(translated)
 
     # 4. 텔레그램 알림
     notify_done(posted)
 
     print(f"[완료] {len(posted)}/{len(news)}건 게시")
+
 
 if __name__ == "__main__":
     print("[Japan News Bot 시작]")

@@ -3,12 +3,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Gemini
+# Gemini AI
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# 티스토리
-TISTORY_ACCESS_TOKEN = os.getenv("TISTORY_ACCESS_TOKEN")
-TISTORY_BLOG_NAME    = os.getenv("TISTORY_BLOG_NAME")   # ex) "myblog" (myblog.tistory.com)
+# Google Blogger (OAuth2)
+BLOGGER_BLOG_ID      = os.getenv("BLOGGER_BLOG_ID")       # Blogger 관리 URL에서 확인
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID")      # GCP OAuth2 클라이언트 ID
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")  # GCP OAuth2 클라이언트 시크릿
+GOOGLE_REFRESH_TOKEN = os.getenv("GOOGLE_REFRESH_TOKEN")  # setup_google_auth.py 로 발급
 
 # 텔레그램
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
