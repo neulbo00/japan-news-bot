@@ -5,7 +5,7 @@ from config import GEMINI_API_KEY
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-3-flash-preview:generateContent?key=" + (GEMINI_API_KEY or "")
+    "gemini-3.1-flash-lite-preview:generateContent?key=" + (GEMINI_API_KEY or "")
 )
 
 PROMPT_TEMPLATE = """
