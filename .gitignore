@@ -5,3 +5,6 @@ __pycache__/
 .DS_Store
 posted_ids.json
 test_run.py
+test_translate.py
+logs/
+*.log
