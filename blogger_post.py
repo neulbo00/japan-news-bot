@@ -1,3 +1,4 @@
+import time
 import requests
 from config import (
     BLOGGER_BLOG_ID,
@@ -85,4 +86,5 @@ def post_all(news_list):
         post_url = post_article(article, access_token)
         if post_url:
             urls.append({"title": article["title_ko"], "url": post_url})
+        time.sleep(2)  # Blogger API rate limit 방지
     return urls

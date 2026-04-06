@@ -5,7 +5,7 @@ from config import GEMINI_API_KEY
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-1.5-flash:generateContent?key=" + (GEMINI_API_KEY or "")
+    "gemini-2.0-flash:generateContent?key=" + (GEMINI_API_KEY or "")
 )
 
 PROMPT_TEMPLATE = """
@@ -74,10 +74,13 @@ def process_article(article):
         return article
 
 def translate_all(news_list):
+    import time
     results = []
     for i, article in enumerate(news_list, 1):
         print(f"[번역 중] {i}/{len(news_list)} — {article['title'][:30]}...")
         results.append(process_article(article))
+        if i < len(news_list):
+            time.sleep(4)  # Gemini free tier: 15 RPM 제한 방지
 
     # 중요도 높은 순 정렬 (동점이면 한국관련 우선)
     results.sort(key=lambda x: (
