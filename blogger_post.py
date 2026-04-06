@@ -1,5 +1,6 @@
 import time
 import requests
+from news_fetch import save_posted_id
 from config import (
     BLOGGER_BLOG_ID,
     GOOGLE_CLIENT_ID,
@@ -67,6 +68,9 @@ def post_article(article, access_token):
         resp.raise_for_status()
         post_url = resp.json().get("url", "")
         print(f"[게시 완료] {article['title_ko'][:30]}... → {post_url}")
+        # 게시 성공 → 이력 파일에 기록 (다음 실행 시 중복 제외)
+        if article.get("id"):
+            save_posted_id(article["id"])
         return post_url
     except Exception as e:
         print(f"[게시 실패] {article['title_ko'][:30]}... → {e}")
