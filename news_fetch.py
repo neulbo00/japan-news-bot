@@ -9,13 +9,40 @@ POSTED_IDS_FILE = os.path.join(os.path.dirname(__file__), "posted_ids.json")
 MAX_HISTORY = 500
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; JapanNewsBot/1.0)"}
 
-# 한국 관련 키워드 (일본어) — 이 중 하나라도 제목/내용에 포함되면 한국 관련 뉴스로 분류
+# ──────────────────────────────────────────────────────────────────────────────
+# 한국 관련 키워드 (일본어) — "일본에서 보는 한국" 관점
+# 일본 미디어가 한국을 다루는 맥락: 외교·안보·경제·문화·사회 전반
+# ──────────────────────────────────────────────────────────────────────────────
 KOREA_KEYWORDS = [
-    "韓国", "日韓", "韓日", "朝鮮", "北朝鮮", "ソウル", "釜山", "仁川",
-    "K-POP", "Kポップ", "韓流", "BTS", "ブラックピンク", "BLACKPINK",
-    "尹錫悦", "李在明", "徴用工", "慰安婦", "竹島", "独島",
-    "サムスン", "現代自動車", "ヒュンダイ", "ロッテ", "韓国語", "韓国人",
-    "THAAD", "在韓", "対韓", "韓国側", "韓国政府", "輸出規制",
+    # 국가·지역
+    "韓国", "韓国側", "韓国政府", "韓国人", "韓国語", "韓国系",
+    "日韓", "韓日", "日韓関係", "韓日関係",
+    "朝鮮", "朝鮮半島", "北朝鮮",
+    "ソウル", "釜山", "仁川", "済州", "光州",
+
+    # 외교·정치 (일본이 주목하는 한국 정치)
+    "尹錫悦", "李在明", "韓国大統領", "韓国外相", "韓国首相",
+    "韓国外務", "韓国政界", "韓国野党",
+    "徴用工", "元徴用工", "慰安婦", "従軍慰安婦",
+    "竹島", "独島", "日本海", "東海",
+    "輸出規制", "ホワイト国", "GSOMIA",
+
+    # 안보·군사
+    "THAAD", "在韓米軍", "韓米", "米韓",
+    "韓国軍", "韓国海軍", "韓国空軍",
+    "北朝鮮ミサイル", "北朝鮮核",
+
+    # 경제·기업
+    "サムスン", "現代自動車", "ヒュンダイ", "LG", "SKハイニックス",
+    "ロッテ", "カカオ", "ネイバー", "ハイブ",
+    "韓国経済", "韓国株", "ウォン安", "ウォン高",
+    "韓国輸出", "韓国貿易",
+
+    # 문화·엔터
+    "K-POP", "Kポップ", "韓流", "Kドラマ", "韓国ドラマ",
+    "BTS", "ブラックピンク", "BLACKPINK", "NewJeans", "ニュージーンズ",
+    "韓国映画", "韓国料理", "韓国コスメ",
+    "在日コリアン", "在日韓国",
 ]
 
 # RSS 소스 목록
@@ -46,6 +73,10 @@ RSS_SOURCES = [
         "korea_feed": True,
     },
 ]
+
+# 브리핑 1건당 최대 전달 건수
+MAX_KOREA_ITEMS   = 10
+MAX_GENERAL_ITEMS = 10
 
 
 def _load_posted_ids():
@@ -87,8 +118,6 @@ def _parse_rss(source):
             pub     = (item.findtext("pubDate") or "").strip()
             if not title or not link:
                 continue
-            # Google News는 link가 태그로 감싸져 있는 경우가 있어 정리
-            link = link.split("?")[0] if "google.com/rss" in link else link
             result.append({
                 "source":  source["name"],
                 "title":   title,
@@ -109,8 +138,8 @@ def fetch_japan_news():
     """
     반환값:
       {
-        "korea": [한국관련 기사 리스트],
-        "general": [일반 일본 기사 리스트],
+        "korea": [한국관련 기사 리스트 (최대 MAX_KOREA_ITEMS건)],
+        "general": [일반 일본 기사 리스트 (최대 MAX_GENERAL_ITEMS건)],
       }
     """
     posted_ids = _load_posted_ids()
@@ -134,6 +163,10 @@ def fetch_japan_news():
 
     if skipped:
         print(f"[중복 스킵] 이미 브리핑된 기사 {skipped}건 제외")
+
+    # 상한 적용
+    korea_news   = korea_news[:MAX_KOREA_ITEMS]
+    general_news = general_news[:MAX_GENERAL_ITEMS]
 
     print(f"[수집 완료] 한국관련 {len(korea_news)}건 / 일본뉴스 {len(general_news)}건")
     return {"korea": korea_news, "general": general_news}
