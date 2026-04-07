@@ -3,8 +3,8 @@ import time
 from datetime import datetime
 
 from news_fetch import fetch_japan_news
-from gemini_process import translate_all
-from blogger_post import post_all
+from gemini_process import generate_briefing
+from blogger_post import post_briefing
 from telegram_notify import notify_done
 from config import SCHEDULE_HOURS
 
@@ -15,22 +15,28 @@ def run_pipeline():
     print(f"[시작] {now}")
     print(f"{'='*50}")
 
-    # 1. 뉴스 수집
-    news = fetch_japan_news()
-    if not news:
-        print("[종료] 수집된 뉴스 없음")
+    # 1. 뉴스 수집 (한국관련 / 일본뉴스 분류)
+    news_dict = fetch_japan_news()
+    total = len(news_dict["korea"]) + len(news_dict["general"])
+    if total == 0:
+        print("[종료] 수집된 신규 뉴스 없음")
         return
 
-    # 2. Gemini 번역+요약
-    translated = translate_all(news)
+    # 2. Gemini — 브리핑 1편 생성
+    briefing = generate_briefing(news_dict)
+    if not briefing:
+        print("[종료] 브리핑 생성 실패")
+        return
 
-    # 3. Blogger 게시
-    posted = post_all(translated)
+    # 3. Blogger — 브리핑 1건 게시
+    post_url = post_briefing(briefing, news_dict)
 
     # 4. 텔레그램 알림
-    notify_done(posted)
-
-    print(f"[완료] {len(posted)}/{len(news)}건 게시")
+    if post_url:
+        notify_done([{"title": briefing.get("title", "뉴스 브리핑"), "url": post_url}])
+        print(f"[완료] 브리핑 게시 성공")
+    else:
+        print(f"[완료] 브리핑 게시 실패")
 
 
 if __name__ == "__main__":
@@ -40,7 +46,7 @@ if __name__ == "__main__":
     for hour in SCHEDULE_HOURS:
         schedule.every().day.at(f"{hour:02d}:00").do(run_pipeline)
 
-    # 시작 시 1회 즉시 실행 (테스트용 — 필요 없으면 주석처리)
+    # 테스트용 1회 즉시 실행 (필요 없으면 주석처리)
     # run_pipeline()
 
     while True:
