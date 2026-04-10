@@ -72,6 +72,21 @@ RSS_SOURCES = [
         "url": "https://news.google.com/rss/search?q=%E9%9F%93%E5%9B%BD+%E6%97%A5%E6%9C%AC&hl=ja&gl=JP&ceid=JP:ja",
         "korea_feed": True,
     },
+    {
+        "name": "Yahoo 교도통신",
+        "url": "https://news.yahoo.co.jp/rss/media/kyodonews/all.xml",
+        "korea_feed": False,
+    },
+    {
+        "name": "마이니치신문",
+        "url": "http://mainichi.jp/rss/etc/flash.rss",
+        "korea_feed": False,
+    },
+    {
+        "name": "아사히신문",
+        "url": "http://rss.asahi.com/f/asahi_newsheadlines",
+        "korea_feed": False,
+    },
 ]
 
 # 브리핑 1건당 최대 전달 건수
