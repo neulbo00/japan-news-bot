@@ -90,8 +90,8 @@ RSS_SOURCES = [
 ]
 
 # 브리핑 1건당 최대 전달 건수
-MAX_KOREA_ITEMS   = 10
-MAX_GENERAL_ITEMS = 10
+MAX_KOREA_ITEMS   = 20
+MAX_GENERAL_ITEMS = 20
 
 
 def _load_posted_ids():

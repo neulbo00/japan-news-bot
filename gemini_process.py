@@ -65,7 +65,7 @@ BRIEFING_PROMPT = """
 """
 
 
-def _format_news_for_prompt(articles, max_items=10):
+def _format_news_for_prompt(articles, max_items=20):
     """뉴스 기사를 프롬프트용 텍스트로 변환"""
     if not articles:
         return "없음"
@@ -89,8 +89,8 @@ def generate_briefing(news_dict, slot="아침"):
     반환: {title, lead, has_korea_news, korea_section, japan_section, labels}
     실패 시 None
     """
-    korea_text   = _format_news_for_prompt(news_dict.get("korea", []),   max_items=10)
-    general_text = _format_news_for_prompt(news_dict.get("general", []), max_items=10)
+    korea_text   = _format_news_for_prompt(news_dict.get("korea", []),   max_items=20)
+    general_text = _format_news_for_prompt(news_dict.get("general", []), max_items=20)
 
     # JST(일본 표준시) 기준으로 날짜 문자열 생성
     now   = datetime.now(tz=JST)
