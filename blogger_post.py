@@ -1,6 +1,13 @@
 import time
 import requests
 from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+    JST = ZoneInfo("Asia/Tokyo")
+except ImportError:
+    import pytz
+    JST = pytz.timezone("Asia/Tokyo")
+
 from news_fetch import save_posted_id
 from config import (
     BLOGGER_BLOG_ID,
@@ -28,7 +35,7 @@ def _get_access_token():
 
 def _build_briefing_html(briefing):
     """브리핑 딕셔너리를 Blogger용 HTML로 변환"""
-    now = datetime.now().strftime("%Y년 %m월 %d일 %H:%M")
+    now = datetime.now(tz=JST).strftime("%Y년 %m월 %d일 %H:%M")
     sections = []
 
     # 리드
@@ -84,7 +91,7 @@ def post_briefing(briefing, news_dict):
         print(f"[Blogger] 토큰 발급 실패: {e}")
         return None
 
-    title   = briefing.get("title", datetime.now().strftime("%m월 %d일 일본 뉴스 브리핑"))
+    title   = briefing.get("title", datetime.now(tz=JST).strftime("%m월 %d일 일본 뉴스 브리핑"))
     labels  = briefing.get("labels", ["브리핑", "일본뉴스"])
     content = _build_briefing_html(briefing)
 

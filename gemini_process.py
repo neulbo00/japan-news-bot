@@ -2,6 +2,13 @@ import json
 import re
 import requests
 from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+    JST = ZoneInfo("Asia/Tokyo")
+except ImportError:
+    import pytz
+    JST = pytz.timezone("Asia/Tokyo")
+
 from config import GEMINI_API_KEY
 
 GEMINI_URL = (
@@ -26,6 +33,15 @@ BRIEFING_PROMPT = """
 5. 뉴스당 분량: 한국관련 3~4문장 / 일본뉴스 1~2문장
 6. 제목은 오늘 날짜 포함
 
+[지명·고유명사 표기 규칙] ← 반드시 준수
+- 일본 지명은 일본어 발음(가나 읽기) 기준으로 한국어 표기. 한자 독음(음독) 절대 사용 금지.
+  예시(올바른 표기): 東京→도쿄, 大阪→오사카, 京都→교토, 名古屋→나고야,
+        横浜→요코하마, 札幌→삿포로, 福岡→후쿠오카, 広島→히로시마,
+        神戸→고베, 仙台→센다이, 渋谷→시부야, 新宿→신주쿠
+  예시(틀린 표기): 동경(✗), 대판(✗), 경도(✗), 명고옥(✗)
+- 일본 인명도 동일하게 일본어 발음으로 표기 (예: 石破茂→이시바 시게루, 한자 독음 금지)
+- 일본 기관·단체명은 한국에서 통용되는 명칭 우선, 없으면 일본어 발음으로 표기
+
 [수집된 뉴스]
 === 한국·일본 관련 뉴스 (일본 미디어 보도) ===
 {korea_news}
@@ -35,7 +51,7 @@ BRIEFING_PROMPT = """
 
 [응답 형식] 반드시 아래 JSON으로만 응답하고 다른 텍스트는 절대 포함하지 마:
 {{
-  "title": "날짜 포함 브리핑 제목 (예: {today} 일본 뉴스 브리핑)",
+  "title": "일본 뉴스 브리핑",
   "lead": "오늘 브리핑의 핵심을 1~2문장으로 요약",
   "has_korea_news": true 또는 false,
   "korea_section": [
@@ -75,7 +91,9 @@ def generate_briefing(news_dict):
     """
     korea_text   = _format_news_for_prompt(news_dict.get("korea", []),   max_items=10)
     general_text = _format_news_for_prompt(news_dict.get("general", []), max_items=10)
-    now   = datetime.now()
+
+    # ✅ JST(일본 표준시) 기준으로 날짜 생성
+    now   = datetime.now(tz=JST)
     today = f"{now.month}월 {now.day}일"
 
     prompt = BRIEFING_PROMPT.format(
@@ -96,7 +114,9 @@ def generate_briefing(news_dict):
         text = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
         text = _strip_json_fence(text)
         briefing = json.loads(text)
-        print(f"[Gemini] 브리핑 생성 완료: {briefing.get('title', '(제목없음)')}")
+        # ✅ 날짜는 Python(JST)에서 직접 덮어쓰기 — Gemini 월 할루시네이션 방지
+        briefing["title"] = f"{today} 일본 뉴스 브리핑"
+        print(f"[Gemini] 브리핑 생성 완료: {briefing['title']}")
         return briefing
     except Exception as e:
         print(f"[Gemini 실패] 브리핑 생성 오류: {e}")
