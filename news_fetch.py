@@ -92,7 +92,7 @@ def _is_korea_related(text):
 
 
 def _parse_pubdate(pub_str):
-    \"\"\"RSS pubDate 문자열 → UTC datetime. 파싱 실패 시 None 반환\"\"\"
+    """RSS pubDate 문자열 → UTC datetime. 파싱 실패 시 None 반환"""
     if not pub_str:
         return None
     formats = [
@@ -113,7 +113,7 @@ def _parse_pubdate(pub_str):
 
 
 def _parse_rss(source, cutoff_utc):
-    \"\"\"RSS 피드 파싱. cutoff_utc 이후 발행된 기사만 반환\"\"\"
+    """RSS 피드 파싱. cutoff_utc 이후 발행된 기사만 반환"""
     try:
         res = requests.get(source["url"], headers=HEADERS, timeout=10)
         res.encoding = "utf-8"
@@ -154,13 +154,13 @@ def _parse_rss(source, cutoff_utc):
 
 
 def fetch_japan_news():
-    \"\"\"
-    \ubc18\ud658:
+    """
+    반환:
       {
-        \"korea\":   [\ud55c\uad6d\uad00\ub828 \uae30\uc0ac \ub9ac\uc2a4\ud2b8 (\uc2dc\uac04 \ud544\ud130 + \uc911\ubcf5\uc81c\uac70)],
-        \"general\": [\uc77c\ubc18 \uc77c\ubcf8 \uae30\uc0ac \ub9ac\uc2a4\ud2b8 (\uc2dc\uac04 \ud544\ud130 + \uc911\ubcf5\uc81c\uac70)],
+        "korea":   [한국관련 기사 리스트 (시간 필터 + 중복제거)],
+        "general": [일반 일본 기사 리스트 (시간 필터 + 중복제거)],
       }
-    \"\"\"
+    """
     now_utc    = datetime.now(timezone.utc)
     cutoff_utc = now_utc - timedelta(hours=HOURS_WINDOW)
     print(f"[\uc2dc\uac04 \ud544\ud130] \ucd5c\uadfc {HOURS_WINDOW}\uc2dc\uac04 \uc774\ub0b4 \uae30\uc0ac\ub9cc \uc218\uc9d1 ({cutoff_utc.astimezone(JST).strftime('%m/%d %H:%M')} JST \uc774\ud6c4)")
