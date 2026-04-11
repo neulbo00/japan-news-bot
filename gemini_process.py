@@ -21,7 +21,7 @@ BRIEFING_PROMPT = """
 여러 일본 매체(Yahoo Japan, NHK, Google News 등)에서 수집한 뉴스입니다.
 
 [방향성]
-- 메인 타겟: **재일 한국인 및 한일 관계에 관심 있는 독자**
+- 메인 타겟: 재일 한국인 및 한일 관계에 관심 있는 독자
 - 부가 타겟: 일본 뉴스의 전반적 흐름 파악
 - 한국어로 자연스럽게 작성하되 전문성과 신뢰감이 느껴지도록
 
@@ -32,14 +32,19 @@ BRIEFING_PROMPT = """
 4. 리드: 이날 브리핑의 핵심을 한눈에 파악할 수 있게, 간결하게 작성
 5. 기사 분량: 한국관련 3~4문장 / 일반뉴스 1~2문장
 6. 제목은 내용을 잘 반영해 작성
+7. 시제는 브리핑 작성 시점(지금 이 순간)을 기준으로 판단해서 자연스럽게 사용:
+   - 방금 발생했거나 현재 진행 중인 사건 → "…하고 있다", "…하는 중이다"
+   - 이미 완료된 사실 → "…했다", "…한 것으로 알려졌다"
+   - 앞으로 예정된 일 → "…할 예정이다", "…할 방침이다"
+   - 같은 문단 안에서 시제를 뒤섞지 말 것
 
 [지명·인명 표기 기준] ※ 반드시 준수
-- 일본 지명은 현지 발음(히라가나 읽기) 기준으로 한국어 표기. 한자 음돁(한국식) 절대 사용 금지.
+- 일본 지명은 현지 발음(히라가나 읽기) 기준으로 한국어 표기. 한자 음독(한국식) 절대 사용 금지.
   예시(올바른 표기): 東京→도쿄, 大阪→오사카, 京都→교토, 名古屋→나고야,
         横浜→요코하마, 札幌→삿포로, 福岡→후쿠오카, 広島→히로시마,
         神戸→고베, 仙台→센다이, 渋谷→시부야, 新宿→신주쿠
   예시(틀린 표기): 동경(✗), 대판(✗), 경도(✗), 명고옥(✗)
-- 일본 인명도 반드시 현지 발음 기준으로 표기 (예: 石破茂→이시바 시게루, 한자 음돁 금지)
+- 일본 인명도 반드시 현지 발음 기준으로 표기 (예: 石破茂→이시바 시게루, 한자 음독 금지)
 - 일본 기업·단체명도 공식 한국어명이 있으면 사용, 없으면 발음 기준으로 표기
 
 [수집된 뉴스]
@@ -65,14 +70,15 @@ BRIEFING_PROMPT = """
 """
 
 
-def _format_news_for_prompt(articles, max_items=20):
-    """뉴스 기사를 프롬프트용 텍스트로 변환"""
+def _format_news_for_prompt(articles):
+    """뉴스 기사를 프롬프트용 텍스트로 변환 (갯수 상한 없음)"""
     if not articles:
         return "없음"
     lines = []
-    for i, a in enumerate(articles[:max_items], 1):
+    for i, a in enumerate(articles, 1):
+        pub = a.get("pubDate", "")
         content = (a.get("content") or "")[:200]
-        lines.append(f"{i}. 【{a['source']}】{a['title']}\n   {content}")
+        lines.append(f"{i}. 【{a['source']}】{a['title']} ({pub})\n   {content}")
     return "\n".join(lines)
 
 
@@ -89,8 +95,8 @@ def generate_briefing(news_dict, slot="아침"):
     반환: {title, lead, has_korea_news, korea_section, japan_section, labels}
     실패 시 None
     """
-    korea_text   = _format_news_for_prompt(news_dict.get("korea", []),   max_items=20)
-    general_text = _format_news_for_prompt(news_dict.get("general", []), max_items=20)
+    korea_text   = _format_news_for_prompt(news_dict.get("korea", []))
+    general_text = _format_news_for_prompt(news_dict.get("general", []))
 
     # JST(일본 표준시) 기준으로 날짜 문자열 생성
     now   = datetime.now(tz=JST)
@@ -114,7 +120,7 @@ def generate_briefing(news_dict, slot="아침"):
         text = _strip_json_fence(text)
         briefing = json.loads(text)
 
-        # 타이틀을 Python(JST)에서 직접 덮어쓰으로써 Gemini 월(月) 할루시네이션 방지
+        # 타이틀을 Python(JST)에서 직접 덮어씀 → Gemini 월(月) 할루시네이션 방지
         # 형식: "4월 11일 아침 브리핑 / [Gemini가 생성한 메인 타이틀]"
         gemini_title = briefing.get("title", "일본 뉴스 브리핑")
         briefing["title"] = f"{today} {slot} 브리핑 / {gemini_title}"
