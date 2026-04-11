@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 .DS_Store
 posted_ids.json
+story_history.json
 test_run.py
 test_translate.py
 logs/
