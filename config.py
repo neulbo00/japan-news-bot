@@ -16,8 +16,5 @@ GOOGLE_REFRESH_TOKEN = os.getenv("GOOGLE_REFRESH_TOKEN")  # setup_google_auth.py
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 
-# 스케줄 (24시간제)
-SCHEDULE_HOURS = [7, 19]  # 오전 7시, 오후 7시
-
 # 수집 뉴스 건수
 MAX_NEWS_PER_SOURCE = 5
