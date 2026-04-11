@@ -56,7 +56,7 @@ BRIEFING_PROMPT = """
 
 [답변 형식] 마크다운 없이 JSON으로만 답하고 설명 텍스트는 절대 포함하지 말 것:
 {{
-  "title": "뉴스 브리핑 제목",
+  "title": "날짜 없이 핵심 내용만 담은 짧은 부제목 (예: '미·이란 협상 개시 및 주요 사회 소식')",
   "lead": "이번 브리핑의 핵심을 1~2문장으로 요약",
   "has_korea_news": true 또는 false,
   "korea_section": [
@@ -99,8 +99,9 @@ def generate_briefing(news_dict, slot="아침"):
     general_text = _format_news_for_prompt(news_dict.get("general", []))
 
     # JST(일본 표준시) 기준으로 날짜 문자열 생성
-    now   = datetime.now(tz=JST)
-    today = f"{now.month}월 {now.day}일"
+    now        = datetime.now(tz=JST)
+    year_short = now.year % 100          # 2026 → 26
+    today      = f"{year_short}년 {now.month}월 {now.day}일"
 
     prompt = BRIEFING_PROMPT.format(
         korea_news=korea_text,
@@ -121,9 +122,9 @@ def generate_briefing(news_dict, slot="아침"):
         briefing = json.loads(text)
 
         # 타이틀을 Python(JST)에서 직접 덮어씀 → Gemini 월(月) 할루시네이션 방지
-        # 형식: "4월 11일 아침 브리핑 / [Gemini가 생성한 메인 타이틀]"
-        gemini_title = briefing.get("title", "일본 뉴스 브리핑")
-        briefing["title"] = f"{today} {slot} 브리핑 / {gemini_title}"
+        # 형식: "26년 4월 11일 일본 저녁 뉴스 브리핑: [Gemini 부제목]"
+        gemini_subtitle = briefing.get("title", "주요 뉴스")
+        briefing["title"] = f"{today} 일본 {slot} 뉴스 브리핑: {gemini_subtitle}"
 
         print(f"[Gemini] 브리핑 생성 완료: {briefing['title']}")
         return briefing
