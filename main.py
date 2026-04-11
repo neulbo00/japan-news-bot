@@ -1,4 +1,10 @@
-from datetime import datetime
+﻿from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+    JST = ZoneInfo("Asia/Tokyo")
+except ImportError:
+    import pytz
+    JST = pytz.timezone("Asia/Tokyo")
 
 from news_fetch import fetch_japan_news
 from gemini_process import generate_briefing
@@ -7,10 +13,14 @@ from telegram_notify import notify_done
 
 
 def run_pipeline():
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now_jst = datetime.now(tz=JST)
+    now_str = now_jst.strftime("%Y-%m-%d %H:%M")
     print(f"\n{'='*50}")
-    print(f"[시작] {now}")
+    print(f"[시작] {now_str}")
     print(f"{'='*50}")
+
+    # 아침(05:00~11:59) / 저녁(그 외) 판단
+    slot = "아침" if 5 <= now_jst.hour < 12 else "저녁"
 
     # 1. 뉴스 수집 (한국관련 / 일본뉴스 분류)
     news_dict = fetch_japan_news()
@@ -19,13 +29,13 @@ def run_pipeline():
         print("[종료] 수집된 신규 뉴스 없음")
         return
 
-    # 2. Gemini — 브리핑 1편 생성
-    briefing = generate_briefing(news_dict)
+    # 2. Gemini로 브리핑 1편 생성
+    briefing = generate_briefing(news_dict, slot=slot)
     if not briefing:
         print("[종료] 브리핑 생성 실패")
         return
 
-    # 3. Blogger — 브리핑 1건 게시
+    # 3. Blogger에 브리핑 1편 게시
     post_url = post_briefing(briefing, news_dict)
 
     # 4. 텔레그램 알림

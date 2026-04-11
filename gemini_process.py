@@ -17,56 +17,56 @@ GEMINI_URL = (
 )
 
 BRIEFING_PROMPT = """
-너는 일본에 거주하는 한국인 독자를 위해 일본 뉴스 브리핑을 작성하는 전문 에디터야.
-아래는 일본 미디어(Yahoo Japan, NHK, Google News 일본판)에서 수집한 뉴스야.
+당신은 도쿄에서 활동하는 한국인 저널리스트로서 일본 뉴스를 한국어로 정리하는 뉴스 에디터입니다.
+여러 일본 매체(Yahoo Japan, NHK, Google News 등)에서 수집한 뉴스입니다.
 
-[편집 방향]
-- 메인 섹션: **일본 미디어가 한국을 어떻게 보고 있는가** (한일 외교, 한국 정치·경제·문화에 대한 일본의 시각)
-- 서브 섹션: 오늘 일본 국내외 주요 뉴스 (정치·경제·사회·재해 등)
-- 독자는 일본 거주 한국인 — 일본어는 이해하지만 한국어로 읽고 싶어 함
+[방향성]
+- 메인 타겟: **재일 한국인 및 한일 관계에 관심 있는 독자**
+- 부가 타겟: 일본 뉴스의 전반적 흐름 파악
+- 한국어로 자연스럽게 작성하되 전문성과 신뢰감이 느껴지도록
 
 [작성 규칙]
-1. 한국 관련 뉴스는 가장 먼저, 가장 자세하게. "일본에서 이렇게 보도했다"는 뉘앙스를 살릴 것
-2. 한국 관련 뉴스가 없으면 korea_section은 빈 배열로 두고 has_korea_news는 false
-3. 일본 뉴스는 오늘의 핵심 이슈 위주로, 중복·유사 뉴스는 하나로 통합
-4. 문체: 신문 브리핑 스타일 — 간결하고 객관적, 과장 없이
-5. 뉴스당 분량: 한국관련 3~4문장 / 일본뉴스 1~2문장
-6. 제목은 오늘 날짜 포함
+1. 한국 관련 뉴스가 있으면 별도 섹션으로 구성, 없으면 생략. "없음" 같은 표현 사용 금지
+2. 한국 관련 뉴스가 없으면 korea_section은 빈 배열로 하고 has_korea_news는 false
+3. 각 뉴스의 핵심을 파악해 중복·유사 기사는 하나로 통합
+4. 리드: 이날 브리핑의 핵심을 한눈에 파악할 수 있게, 간결하게 작성
+5. 기사 분량: 한국관련 3~4문장 / 일반뉴스 1~2문장
+6. 제목은 내용을 잘 반영해 작성
 
-[지명·고유명사 표기 규칙] ← 반드시 준수
-- 일본 지명은 일본어 발음(가나 읽기) 기준으로 한국어 표기. 한자 독음(음독) 절대 사용 금지.
+[지명·인명 표기 기준] ※ 반드시 준수
+- 일본 지명은 현지 발음(히라가나 읽기) 기준으로 한국어 표기. 한자 음돁(한국식) 절대 사용 금지.
   예시(올바른 표기): 東京→도쿄, 大阪→오사카, 京都→교토, 名古屋→나고야,
         横浜→요코하마, 札幌→삿포로, 福岡→후쿠오카, 広島→히로시마,
         神戸→고베, 仙台→센다이, 渋谷→시부야, 新宿→신주쿠
   예시(틀린 표기): 동경(✗), 대판(✗), 경도(✗), 명고옥(✗)
-- 일본 인명도 동일하게 일본어 발음으로 표기 (예: 石破茂→이시바 시게루, 한자 독음 금지)
-- 일본 기관·단체명은 한국에서 통용되는 명칭 우선, 없으면 일본어 발음으로 표기
+- 일본 인명도 반드시 현지 발음 기준으로 표기 (예: 石破茂→이시바 시게루, 한자 음돁 금지)
+- 일본 기업·단체명도 공식 한국어명이 있으면 사용, 없으면 발음 기준으로 표기
 
 [수집된 뉴스]
-=== 한국·일본 관련 뉴스 (일본 미디어 보도) ===
+=== 한국·한일 관련 뉴스 (별도 섹션 구성) ===
 {korea_news}
 
-=== 일본 주요 뉴스 ===
+=== 일본 일반 뉴스 ===
 {general_news}
 
-[응답 형식] 반드시 아래 JSON으로만 응답하고 다른 텍스트는 절대 포함하지 마:
+[답변 형식] 마크다운 없이 JSON으로만 답하고 설명 텍스트는 절대 포함하지 말 것:
 {{
-  "title": "일본 뉴스 브리핑",
-  "lead": "오늘 브리핑의 핵심을 1~2문장으로 요약",
+  "title": "뉴스 브리핑 제목",
+  "lead": "이번 브리핑의 핵심을 1~2문장으로 요약",
   "has_korea_news": true 또는 false,
   "korea_section": [
-    {{"headline": "소제목", "body": "3~4문장 설명 (일본 미디어의 시각 반영)"}}
+    {{"headline": "기사제목", "body": "3~4문장 본문 (한국 독자를 위한 상세 설명)"}}
   ],
   "japan_section": [
-    {{"headline": "소제목", "body": "1~2문장 설명"}}
+    {{"headline": "기사제목", "body": "1~2문장 본문"}}
   ],
-  "labels": ["브리핑", "일본뉴스"]
+  "labels": ["브리핑", "일본뉴스브리핑"]
 }}
 """
 
 
 def _format_news_for_prompt(articles, max_items=10):
-    """기사 목록을 프롬프트용 텍스트로 변환"""
+    """뉴스 기사를 프롬프트용 텍스트로 변환"""
     if not articles:
         return "없음"
     lines = []
@@ -83,23 +83,22 @@ def _strip_json_fence(text):
     return text.strip()
 
 
-def generate_briefing(news_dict):
+def generate_briefing(news_dict, slot="아침"):
     """
     수집된 뉴스 딕셔너리를 받아 Gemini로 브리핑 1편 생성.
     반환: {title, lead, has_korea_news, korea_section, japan_section, labels}
-    또는 실패 시 None
+    실패 시 None
     """
     korea_text   = _format_news_for_prompt(news_dict.get("korea", []),   max_items=10)
     general_text = _format_news_for_prompt(news_dict.get("general", []), max_items=10)
 
-    # ✅ JST(일본 표준시) 기준으로 날짜 생성
+    # JST(일본 표준시) 기준으로 날짜 문자열 생성
     now   = datetime.now(tz=JST)
     today = f"{now.month}월 {now.day}일"
 
     prompt = BRIEFING_PROMPT.format(
         korea_news=korea_text,
         general_news=general_text,
-        today=today,
     )
 
     payload = {
@@ -114,10 +113,14 @@ def generate_briefing(news_dict):
         text = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
         text = _strip_json_fence(text)
         briefing = json.loads(text)
-        # ✅ 날짜는 Python(JST)에서 직접 덮어쓰기 — Gemini 월 할루시네이션 방지
-        briefing["title"] = f"{today} 일본 뉴스 브리핑"
+
+        # 타이틀을 Python(JST)에서 직접 덮어쓰으로써 Gemini 월(月) 할루시네이션 방지
+        # 형식: "4월 11일 아침 브리핑 / [Gemini가 생성한 메인 타이틀]"
+        gemini_title = briefing.get("title", "일본 뉴스 브리핑")
+        briefing["title"] = f"{today} {slot} 브리핑 / {gemini_title}"
+
         print(f"[Gemini] 브리핑 생성 완료: {briefing['title']}")
         return briefing
     except Exception as e:
-        print(f"[Gemini 실패] 브리핑 생성 오류: {e}")
+        print(f"[Gemini 오류] 브리핑 생성 실패: {e}")
         return None
