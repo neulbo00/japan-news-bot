@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 try:
     from zoneinfo import ZoneInfo
     JST = ZoneInfo("Asia/Tokyo")
@@ -9,7 +9,7 @@ except ImportError:
 from news_fetch import fetch_japan_news
 from gemini_process import generate_briefing
 from blogger_post import post_briefing
-from telegram_notify import notify_done
+from telegram_notify import notify_done, send_message
 
 
 def run_pipeline():
@@ -33,6 +33,7 @@ def run_pipeline():
     briefing = generate_briefing(news_dict, slot=slot)
     if not briefing:
         print("[종료] 브리핑 생성 실패")
+        send_message("📰 *Japan News Bot*\n⚠️ 브리핑 생성에 실패했습니다. (Gemini API 오류 또는 JSON 파싱 실패)\n서버 로그를 확인해주세요.")
         return
 
     # 3. Blogger에 브리핑 1편 게시

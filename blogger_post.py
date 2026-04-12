@@ -8,7 +8,7 @@ except ImportError:
     import pytz
     JST = pytz.timezone("Asia/Tokyo")
 
-from news_fetch import save_posted_id
+from news_fetch import save_posted_ids
 from config import (
     BLOGGER_BLOG_ID,
     GOOGLE_CLIENT_ID,
@@ -109,8 +109,8 @@ def post_briefing(briefing, news_dict):
         print(f"[게시 완료] {title} → {post_url}")
 
         # 브리핑에 포함된 모든 기사 ID를 이력에 기록
-        for article in news_dict.get("korea", []) + news_dict.get("general", []):
-            save_posted_id(article["id"])
+        all_articles = news_dict.get("korea", []) + news_dict.get("general", [])
+        save_posted_ids([article["id"] for article in all_articles])
 
         return post_url
     except Exception as e:

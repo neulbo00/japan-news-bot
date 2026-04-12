@@ -78,10 +78,11 @@ def _load_posted_ids():
     return set()
 
 
-def save_posted_id(article_id):
+def save_posted_ids(article_ids):
     ids = list(_load_posted_ids())
-    if article_id not in ids:
-        ids.append(article_id)
+    for aid in article_ids:
+        if aid not in ids:
+            ids.append(aid)
     ids = ids[-MAX_HISTORY:]
     with open(POSTED_IDS_FILE, "w", encoding="utf-8") as f:
         json.dump(ids, f, ensure_ascii=False)
