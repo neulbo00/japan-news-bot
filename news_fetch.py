@@ -14,7 +14,7 @@ except ImportError:
 
 POSTED_IDS_FILE = os.path.join(os.path.dirname(__file__), "posted_ids.json")
 MAX_HISTORY = 500
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; JapanNewsBot/1.0)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
 # 수집 시간 범위: 브리핑 실행 시각 기준 과거 12시간
 HOURS_WINDOW = 12
@@ -64,7 +64,7 @@ RSS_SOURCES = [
     {"name": "Google \ud55c\uad6d\uad00\ub828", "url": "https://news.google.com/rss/search?q=%E9%9F%93%E5%9B%BD+%E6%97%A5%E6%9C%AC&hl=ja&gl=JP&ceid=JP:ja", "korea_feed": True},
     {"name": "Yahoo \uad50\ub3c4\ud1b5\uc2e0",  "url": "https://news.yahoo.co.jp/rss/media/kyodonews/all.xml",                                    "korea_feed": False},
     {"name": "\ub9c8\uc774\ub2c8\uce58\uc2e0\ubb38",  "url": "http://mainichi.jp/rss/etc/flash.rss",                                                      "korea_feed": False},
-    {"name": "\uc544\uc0ac\ud788\uc2e0\ubb38",   "url": "http://rss.asahi.com/f/asahi_newsheadlines",                                             "korea_feed": False},
+    {"name": "\uc544\uc0ac\ud788\uc2e0\ubb38",   "url": "https://www.asahi.com/rss/asahi/newsheadlines.rdf",                                       "korea_feed": False},
 ]
 
 
@@ -114,19 +114,48 @@ def _parse_pubdate(pub_str):
 
 
 def _parse_rss(source, cutoff_utc):
-    """RSS 피드 파싱. cutoff_utc 이후 발행된 기사만 반환"""
+    """RSS / RDF 피드 파싱. cutoff_utc 이후 발행된 기사만 반환"""
+    # RDF 네임스페이스 (아사히신문 등)
+    NS_RSS  = "http://purl.org/rss/1.0/"
+    NS_DC   = "http://purl.org/dc/elements/1.1/"
     try:
         res = requests.get(source["url"], headers=HEADERS, timeout=10)
-        res.encoding = "utf-8"
-        root = ET.fromstring(res.text)
+        # bytes로 파싱해야 XML 선언부 인코딩을 ET가 올바르게 처리
+        root = ET.fromstring(res.content)
+
+        # RSS 2.0: .//item  /  RDF 1.0: .//{ns}item
         items = root.findall(".//item")
+        if not items:
+            items = root.findall(f".//{{{NS_RSS}}}item")
+
         result = []
         skipped_old = 0
         for item in items:
-            title   = (item.findtext("title") or "").strip()
-            desc    = (item.findtext("description") or "").strip()
-            link    = (item.findtext("link") or "").strip()
-            pub     = (item.findtext("pubDate") or "").strip()
+            # 제목: RSS → title / RDF → {ns}title
+            title = (
+                item.findtext("title")
+                or item.findtext(f"{{{NS_RSS}}}title")
+                or ""
+            ).strip()
+            # 설명: RSS → description / RDF → {ns}description
+            desc = (
+                item.findtext("description")
+                or item.findtext(f"{{{NS_RSS}}}description")
+                or ""
+            ).strip()
+            # 링크: RSS → link / RDF → {ns}link
+            link = (
+                item.findtext("link")
+                or item.findtext(f"{{{NS_RSS}}}link")
+                or ""
+            ).strip()
+            # 날짜: RSS → pubDate / RDF → dc:date
+            pub = (
+                item.findtext("pubDate")
+                or item.findtext(f"{{{NS_DC}}}date")
+                or ""
+            ).strip()
+
             if not title or not link:
                 continue
 
