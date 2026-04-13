@@ -178,7 +178,7 @@ def generate_briefing(news_dict, slot="아침"):
     }
 
     try:
-        res = requests.post(GEMINI_URL, json=payload, timeout=30)
+        res = requests.post(GEMINI_URL, json=payload, timeout=90)
         res.raise_for_status()
         raw  = res.json()
         text = raw["candidates"][0]["content"]["parts"][0]["text"].strip()

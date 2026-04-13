@@ -39,7 +39,11 @@ def run_pipeline():
     # 3. Blogger에 브리핑 1편 게시
     post_url = post_briefing(briefing, news_dict)
 
-    # 4. 텔레그램 알림
+    # 4. 위키 Raw 폴더로 전송 (추가)
+    from export_to_wiki import export_briefing_to_wiki
+    export_briefing_to_wiki(briefing, news_dict)
+
+    # 5. 텔레그램 알림
     if post_url:
         notify_done([{"title": briefing.get("title", "뉴스 브리핑"), "url": post_url}])
         print(f"[완료] 브리핑 게시 성공")
