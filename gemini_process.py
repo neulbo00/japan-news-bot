@@ -15,10 +15,12 @@ from config import GEMINI_API_KEY
 STORY_HISTORY_FILE = os.path.join(os.path.dirname(__file__), "story_history.json")
 MAX_HISTORY_ENTRIES = 4  # 최근 4회 = 2일분
 
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-3.1-flash-lite-preview:generateContent?key=" + (GEMINI_API_KEY or "")
-)
+GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+# 모델 우선순위: 앞에서부터 순서대로 시도, 503/429 시 다음 모델로 폴백
+GEMINI_MODELS = [
+    "gemini-3.1-flash-lite-preview",  # 1순위: 무료 RPD 500
+    "gemini-2.5-flash",               # 폴백: 503/timeout 시 자동 전환
+]
 
 BRIEFING_PROMPT = """
 당신은 도쿄에서 활동하는 한국인 저널리스트로서 일본 뉴스를 한국어로 정리하는 뉴스 에디터입니다.
@@ -177,25 +179,51 @@ def generate_briefing(news_dict, slot="아침"):
         "generationConfig": {"temperature": 0.4},
     }
 
-    try:
-        res = requests.post(GEMINI_URL, json=payload, timeout=90)
-        res.raise_for_status()
-        raw  = res.json()
-        text = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
-        text = _strip_json_fence(text)
-        briefing = json.loads(text)
+    import time
 
-        # 타이틀을 Python(JST)에서 직접 덮어씀 → Gemini 월(月) 할루시네이션 방지
-        # 형식: "26년 4월 11일 일본 저녁 뉴스 브리핑: [Gemini 부제목]"
-        gemini_subtitle = briefing.get("title", "주요 뉴스")
-        briefing["title"] = f"{today} 일본 {slot} 뉴스 브리핑: {gemini_subtitle}"
+    RETRY_WAIT = 30  # 동일 모델 재시도 대기 (초)
 
-        print(f"[Gemini] 브리핑 생성 완료: {briefing['title']}")
+    for model in GEMINI_MODELS:
+        url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
+        for attempt in range(1, 3):  # 모델당 최대 2회 시도
+            try:
+                res = requests.post(url, json=payload, timeout=90)
+                res.raise_for_status()
+                raw  = res.json()
+                text = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
+                text = _strip_json_fence(text)
+                briefing = json.loads(text)
 
-        # 이번 브리핑 헤드라인을 히스토리에 저장
-        _save_story_history(briefing, today, slot)
+                # 타이틀을 Python(JST)에서 직접 덮어씀 → Gemini 월(月) 할루시네이션 방지
+                gemini_subtitle = briefing.get("title", "주요 뉴스")
+                briefing["title"] = f"{today} 일본 {slot} 뉴스 브리핑: {gemini_subtitle}"
 
-        return briefing
-    except Exception as e:
-        print(f"[Gemini 오류] 브리핑 생성 실패: {e}")
-        return None
+                if model != GEMINI_MODELS[0]:
+                    print(f"[Gemini] 폴백 모델 사용: {model}")
+                print(f"[Gemini] 브리핑 생성 완료: {briefing['title']}")
+
+                # 이번 브리핑 헤드라인을 히스토리에 저장
+                _save_story_history(briefing, today, slot)
+
+                return briefing
+
+            except Exception as e:
+                err = str(e)
+                is_server_err = any(code in err for code in ["503", "timed out", "timeout"])
+                is_rate_limit = "429" in err
+
+                if is_server_err and attempt == 1:
+                    # 동일 모델 1회 재시도
+                    print(f"[Gemini 재시도] {model} — {RETRY_WAIT}초 후 재시도 ({e})")
+                    time.sleep(RETRY_WAIT)
+                elif is_server_err or is_rate_limit:
+                    # 다음 모델로 폴백 (60초 대기 후)
+                    print(f"[Gemini 폴백] {model} 실패({e}), 60초 후 다음 모델 시도")
+                    time.sleep(60)
+                    break
+                else:
+                    print(f"[Gemini 오류] 브리핑 생성 실패: {e}")
+                    return None
+
+    print("[Gemini 오류] 모든 모델 실패")
+    return None
