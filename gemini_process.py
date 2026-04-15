@@ -163,7 +163,8 @@ def _format_news_for_prompt(articles):
     for i, a in enumerate(articles, 1):
         pub = a.get("pubDate", "")
         content = (a.get("content") or "")[:200]
-        lines.append(f"{i}. 【{a['source']}】{a['title']} ({pub})\n   {content}")
+        tag = " [연속보도]" if a.get("is_followup") else ""
+        lines.append(f"{i}. 【{a['source']}】{a['title']}{tag} ({pub})\n   {content}")
     return "\n".join(lines)
 
 
@@ -180,9 +181,9 @@ def generate_briefing(news_dict, slot="아침"):
     반환: {title, lead, has_korea_news, korea_section, japan_section, labels}
     실패 시 None
     """
-    # Gemini 전달 전 기사 수 상한 적용 (payload 과부하 방지)
-    korea_all   = news_dict.get("korea",   [])
-    general_all = news_dict.get("general", [])
+    # Gemini 전달 전: 연속보도(follow-up)를 후순위로 정렬 → 상한 초과 시 우선 trim
+    korea_all   = sorted(news_dict.get("korea",   []), key=lambda x: x.get("is_followup", False))
+    general_all = sorted(news_dict.get("general", []), key=lambda x: x.get("is_followup", False))
     korea_trim   = korea_all[:MAX_KOREA_FOR_GEMINI]
     general_trim = general_all[:MAX_GENERAL_FOR_GEMINI]
     if len(korea_all) > MAX_KOREA_FOR_GEMINI or len(general_all) > MAX_GENERAL_FOR_GEMINI:

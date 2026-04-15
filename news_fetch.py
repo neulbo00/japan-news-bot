@@ -12,9 +12,12 @@ except ImportError:
     import pytz
     JST = pytz.timezone("Asia/Tokyo")
 
-POSTED_IDS_FILE = os.path.join(os.path.dirname(__file__), "posted_ids.json")
-MAX_HISTORY = 500
+STORY_HISTORY_FILE   = os.path.join(os.path.dirname(__file__), "story_history.json")
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+
+# 제목 유사도 기반 중복 제거 임계값
+TITLE_SIM_THRESHOLD   = 0.45  # within-run: 동일 사건 클러스터링
+FOLLOWUP_SIM_THRESHOLD = 0.50  # cross-run: 이전 브리핑 연속 보도 판정
 
 # 수집 시간 범위: 브리핑 실행 시각 기준 과거 12시간
 HOURS_WINDOW = 12
@@ -65,31 +68,81 @@ RSS_SOURCES = [
     {"name": "Yahoo \uad50\ub3c4\ud1b5\uc2e0",  "url": "https://news.yahoo.co.jp/rss/media/kyodonews/all.xml",                                    "korea_feed": False},
     {"name": "\ub9c8\uc774\ub2c8\uce58\uc2e0\ubb38",  "url": "http://mainichi.jp/rss/etc/flash.rss",                                                      "korea_feed": False},
     {"name": "\uc544\uc0ac\ud788\uc2e0\ubb38",   "url": "https://www.asahi.com/rss/asahi/newsheadlines.rdf",                                       "korea_feed": False},
+    {"name": "\uc9c0\uc9c0\ud1b5\uc2e0",        "url": "https://www.jiji.com/rss/ranking.rdf",                                                      "korea_feed": False},
 ]
-
-
-def _load_posted_ids():
-    if os.path.exists(POSTED_IDS_FILE):
-        try:
-            with open(POSTED_IDS_FILE, "r", encoding="utf-8") as f:
-                return set(json.load(f))
-        except Exception:
-            pass
-    return set()
-
-
-def save_posted_ids(article_ids):
-    ids = list(_load_posted_ids())
-    for aid in article_ids:
-        if aid not in ids:
-            ids.append(aid)
-    ids = ids[-MAX_HISTORY:]
-    with open(POSTED_IDS_FILE, "w", encoding="utf-8") as f:
-        json.dump(ids, f, ensure_ascii=False)
 
 
 def _is_korea_related(text):
     return any(kw in text for kw in KOREA_KEYWORDS)
+
+
+# ── 중복 필터링 헬퍼 ──────────────────────────────────────────────────────────
+
+# RSS 소스 우선순위 (낮을수록 고우선)
+SOURCE_PRIORITY = {
+    "NHK 국내뉴스": 0, "NHK 국제뉴스": 0,
+    "Yahoo 교도통신": 1, "지지통신": 1,
+    "마이니치신문": 2, "아사히신문": 2,
+    "Yahoo Japan": 3, "Google 일본뉴스": 3, "Google 한국관련": 3,
+}
+
+
+def _title_bigrams(title):
+    """제목을 문자 단위 bigram 집합으로 변환 (일본어/한국어 모두 대응)"""
+    return set(title[i:i+2] for i in range(len(title) - 1))
+
+
+def _title_similarity(a, b):
+    """두 제목의 Jaccard bigram 유사도 (0.0~1.0)"""
+    ba, bb = _title_bigrams(a), _title_bigrams(b)
+    if not ba or not bb:
+        return 0.0
+    return len(ba & bb) / len(ba | bb)
+
+
+def _dedup_by_title(articles):
+    """
+    within-run: 유사 제목 기사를 클러스터링해 대표 1건만 유지.
+    같은 클러스터 내에서 SOURCE_PRIORITY 높은 소스를 대표로 선택.
+    """
+    kept = []
+    for article in articles:
+        merged = False
+        for i, rep in enumerate(kept):
+            if _title_similarity(article["title"], rep["title"]) >= TITLE_SIM_THRESHOLD:
+                if SOURCE_PRIORITY.get(article["source"], 9) < SOURCE_PRIORITY.get(rep["source"], 9):
+                    kept[i] = article
+                merged = True
+                break
+        if not merged:
+            kept.append(article)
+    return kept
+
+
+def _load_story_history():
+    """story_history.json 로드 (cross-run 중복 판정용)"""
+    if os.path.exists(STORY_HISTORY_FILE):
+        try:
+            with open(STORY_HISTORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+
+def _mark_followups(articles):
+    """
+    cross-run: 최근 브리핑 헤드라인과 유사한 기사에 is_followup=True 마킹.
+    Gemini 전송 시 후순위로 처리되며, 프롬프트에 [연속보도] 태그로 표시됨.
+    """
+    history = _load_story_history()
+    past = [h["headline"] for e in history for h in e.get("headlines", [])]
+    for article in articles:
+        article["is_followup"] = bool(past) and any(
+            _title_similarity(article["title"], hl) >= FOLLOWUP_SIM_THRESHOLD
+            for hl in past
+        )
+    return articles
 
 
 def _parse_pubdate(pub_str):
@@ -187,26 +240,22 @@ def fetch_japan_news():
     """
     반환:
       {
-        "korea":   [한국관련 기사 리스트 (시간 필터 + 중복제거)],
-        "general": [일반 일본 기사 리스트 (시간 필터 + 중복제거)],
+        "korea":   [한국관련 기사 리스트 (시간 필터 + 유사 중복 제거 + 연속보도 마킹)],
+        "general": [일반 일본 기사 리스트 (시간 필터 + 유사 중복 제거 + 연속보도 마킹)],
       }
+    각 기사에 is_followup(bool) 필드 포함.
     """
     now_utc    = datetime.now(timezone.utc)
     cutoff_utc = now_utc - timedelta(hours=HOURS_WINDOW)
-    print(f"[\uc2dc\uac04 \ud544\ud130] \ucd5c\uadfc {HOURS_WINDOW}\uc2dc\uac04 \uc774\ub0b4 \uae30\uc0ac\ub9cc \uc218\uc9d1 ({cutoff_utc.astimezone(JST).strftime('%m/%d %H:%M')} JST \uc774\ud6c4)")
+    print(f"[시간 필터] 최근 {HOURS_WINDOW}시간 이내 기사만 수집 ({cutoff_utc.astimezone(JST).strftime('%m/%d %H:%M')} JST 이후)")
 
-    posted_ids = _load_posted_ids()
-    seen_ids   = set()
+    seen_ids     = set()
     korea_news   = []
     general_news = []
-    skipped_dup  = 0
 
     for source in RSS_SOURCES:
         for article in _parse_rss(source, cutoff_utc):
             if article["id"] in seen_ids:
-                continue
-            if article["id"] in posted_ids:
-                skipped_dup += 1
                 continue
             seen_ids.add(article["id"])
             if article["is_korea"]:
@@ -214,8 +263,23 @@ def fetch_japan_news():
             else:
                 general_news.append(article)
 
-    if skipped_dup:
-        print(f"[\uc911\ubcf5 \uc81c\uc678] \uc774\ubbf8 \uac8c\uc2dc\ub41c \uae30\uc0ac {skipped_dup}\uac74 \uc2a4\ud0b5")
+    raw_k, raw_g = len(korea_news), len(general_news)
 
-    print(f"[\uc218\uc9d1 \uc644\ub8cc] \ud55c\uad6d\uad00\ub828 {len(korea_news)}\uac74 / \uc77c\ubcf8\ub274\uc2a4 {len(general_news)}\uac74")
+    # ① within-run: 제목 유사도 기반 중복 제거
+    korea_news   = _dedup_by_title(korea_news)
+    general_news = _dedup_by_title(general_news)
+    dedup_k = raw_k - len(korea_news)
+    dedup_g = raw_g - len(general_news)
+    if dedup_k or dedup_g:
+        print(f"[유사 중복 제거] 한국관련 -{dedup_k}건 / 일본뉴스 -{dedup_g}건")
+
+    # ② cross-run: 이전 브리핑 연속 보도 마킹
+    korea_news   = _mark_followups(korea_news)
+    general_news = _mark_followups(general_news)
+    fu_k = sum(1 for a in korea_news if a["is_followup"])
+    fu_g = sum(1 for a in general_news if a["is_followup"])
+    if fu_k or fu_g:
+        print(f"[연속보도 마킹] 한국관련 {fu_k}건 / 일본뉴스 {fu_g}건 → Gemini 후순위 처리")
+
+    print(f"[수집 완료] 한국관련 {len(korea_news)}건 / 일본뉴스 {len(general_news)}건")
     return {"korea": korea_news, "general": general_news}
