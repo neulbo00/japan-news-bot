@@ -37,6 +37,29 @@ def _build_briefing_html(briefing):
     now = datetime.now(tz=JST).strftime("%Y년 %m월 %d일 %H:%M")
     sections = []
 
+    # 날씨 블록 (Phase 3)
+    weather = briefing.get("_weather")
+    if weather:
+        summary   = weather.get("summary", "")
+        t_max     = weather.get("temp_max")
+        t_min     = weather.get("temp_min")
+        rain      = weather.get("rain_chances", {})
+        temp_str  = ""
+        if t_min is not None and t_max is not None:
+            temp_str = f" &nbsp;|&nbsp; 최저 {t_min}℃ / 최고 {t_max}℃"
+        elif t_max is not None:
+            temp_str = f" &nbsp;|&nbsp; 최고 {t_max}℃"
+        rain_parts = [f"오전 {rain['morning']}%" if rain.get("morning") is not None and rain["morning"] >= 0 else "",
+                      f"오후 {rain['afternoon']}%" if rain.get("afternoon") is not None and rain["afternoon"] >= 0 else "",
+                      f"저녁 {rain['evening']}%" if rain.get("evening") is not None and rain["evening"] >= 0 else "",
+                      f"야간 {rain['night']}%" if rain.get("night") is not None and rain["night"] >= 0 else ""]
+        rain_str = " / ".join(p for p in rain_parts if p)
+        sections.append(f'''<div style="background:#e8f4fd; border-radius:8px; padding:12px 18px; margin-bottom:18px; font-size:14px; color:#1a5276;">
+  <b>☀️ 오늘의 도쿄 날씨</b><br>
+  {summary}{temp_str}<br>
+  {f'강수확률: {rain_str}' if rain_str else ""}
+</div>''')
+
     # 리드
     lead = briefing.get("lead", "")
     if lead:

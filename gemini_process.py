@@ -2,6 +2,7 @@ import json
 import os
 import re
 import requests
+import time
 from datetime import datetime
 try:
     from zoneinfo import ZoneInfo
@@ -106,6 +107,163 @@ BRIEFING_PROMPT = """
 """
 
 
+ENTITY_PROMPT = """
+다음 뉴스 기사 목록에서 각 기사의 entity(개체명)를 추출해 JSON 배열로 반환하라.
+기사 순서 그대로, 같은 개수로 반환할 것.
+
+추출 항목:
+- people: 등장 인물명 (일본인은 일본어 발음 기준 한국어 표기, 예: 이시바 시게루)
+- organizations: 기업·정당·기관·단체명
+- places: 지명 (일본 지명은 발음 기준 한국어, 예: 도쿄·오사카)
+- numbers: [{"value": "금액/수치", "context": "맥락"}] 형태 (중요 수치만)
+- topics: 핵심 주제 키워드 2~4개
+- importance: 한국인 독자 관심도 1~5 정수
+  (5=매우 중요 한일 직접 관련, 4=중요 한일 간접 관련, 3=보통, 2=낮음, 1=노이즈)
+
+규칙:
+- entity가 없는 항목은 빈 배열 [] (null/None 사용 금지)
+- numbers가 없으면 []
+- JSON 배열만 출력, 설명 텍스트 절대 불포함
+
+기사 목록:
+{articles_text}
+
+[답변 형식] JSON 배열만:
+[
+  {{"people": [], "organizations": [], "places": [], "numbers": [], "topics": [], "importance": 3}},
+  ...
+]
+"""
+
+NEGATIVE_CONSTRAINT_TEMPLATE = """
+⚠️ 아래 인명·조직명·지명은 절대 누락 금지. 원문 표현 그대로 사용할 것:
+인명: {people}
+조직: {organizations}
+지명: {places}
+"""
+
+
+def _call_gemini(prompt: str, timeout: int = 90) -> str | None:
+    """단일 Gemini 호출. 폴백 포함. 성공 시 텍스트 반환, 실패 시 None."""
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.2},
+    }
+    RETRY_WAIT = 30
+    for model in GEMINI_MODELS:
+        url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
+        for attempt in range(1, 3):
+            try:
+                res = requests.post(url, json=payload, timeout=timeout)
+                res.raise_for_status()
+                raw = res.json()
+                return raw["candidates"][0]["content"]["parts"][0]["text"].strip()
+            except Exception as e:
+                err = str(e)
+                is_server_err = any(c in err for c in ["503", "timed out", "timeout"])
+                is_rate_limit = "429" in err
+                if is_server_err and attempt == 1:
+                    print(f"[Gemini] {model} 재시도 ({err[:60]})")
+                    time.sleep(RETRY_WAIT)
+                elif is_server_err or is_rate_limit:
+                    print(f"[Gemini] {model} 폴백 ({err[:60]})")
+                    time.sleep(60)
+                    break
+                else:
+                    print(f"[Gemini] 오류: {err[:80]}")
+                    return None
+    return None
+
+
+def extract_entities(articles: list) -> list:
+    """
+    기사 리스트에 대해 batch Gemini 호출로 entity 추출.
+    각 article에 'entities' 키를 추가한 새 리스트 반환.
+    Gemini 실패 시 빈 entity 구조로 채워 반환.
+    """
+    empty_entity = {
+        "people": [], "organizations": [], "places": [],
+        "numbers": [], "topics": [], "importance": 3,
+    }
+    if not articles:
+        return articles
+
+    lines = []
+    for i, a in enumerate(articles, 1):
+        body = (a.get("full_text") or a.get("content") or "")[:500]
+        lines.append(f"{i}. 제목: {a['title']}\n   내용: {body}")
+    articles_text = "\n\n".join(lines)
+
+    prompt = ENTITY_PROMPT.format(articles_text=articles_text)
+    raw = _call_gemini(prompt, timeout=120)
+
+    entity_list = []
+    if raw:
+        try:
+            raw_clean = _strip_json_fence(raw)
+            parsed = json.loads(raw_clean)
+            if isinstance(parsed, list):
+                entity_list = parsed
+        except Exception as e:
+            print(f"[Entity] JSON 파싱 실패: {e}")
+
+    result = []
+    for i, article in enumerate(articles):
+        a = dict(article)
+        if i < len(entity_list) and isinstance(entity_list[i], dict):
+            ent = entity_list[i]
+            a["entities"] = {
+                "people":        ent.get("people") or [],
+                "organizations": ent.get("organizations") or [],
+                "places":        ent.get("places") or [],
+                "numbers":       ent.get("numbers") or [],
+                "topics":        ent.get("topics") or [],
+                "importance":    ent.get("importance") or 3,
+            }
+        else:
+            a["entities"] = dict(empty_entity)
+        result.append(a)
+
+    people_found = sum(len(a["entities"]["people"]) for a in result)
+    print(f"[Entity] {len(result)}건 처리 완료 — 인명 {people_found}개 추출")
+    return result
+
+
+def _check_entity_missing(text: str, entities: dict) -> list:
+    """브리핑 텍스트에서 누락된 entity 목록 반환 (people + organizations)."""
+    missing = []
+    for name in entities.get("people", []):
+        if name and name not in text:
+            missing.append(name)
+    for org in entities.get("organizations", []):
+        if org and org not in text:
+            missing.append(org)
+    return missing
+
+
+def _build_negative_constraint(all_articles: list) -> str:
+    """모든 기사의 entity를 모아 negative constraint 텍스트 생성."""
+    people = []
+    orgs = []
+    places = []
+    for a in all_articles:
+        ent = a.get("entities", {})
+        people.extend(ent.get("people", []))
+        orgs.extend(ent.get("organizations", []))
+        places.extend(ent.get("places", []))
+    # 중복 제거
+    people  = list(dict.fromkeys(p for p in people if p))
+    orgs    = list(dict.fromkeys(o for o in orgs if o))
+    places  = list(dict.fromkeys(p for p in places if p))
+    if not (people or orgs or places):
+        return ""
+    return NEGATIVE_CONSTRAINT_TEMPLATE.format(
+        people=", ".join(people) if people else "없음",
+        organizations=", ".join(orgs) if orgs else "없음",
+        places=", ".join(places) if places else "없음",
+    )
+
+
 def _load_story_history():
     """story_history.json 로드. 없으면 빈 리스트 반환"""
     if os.path.exists(STORY_HISTORY_FILE):
@@ -175,11 +333,13 @@ def _strip_json_fence(text):
     return text.strip()
 
 
-def generate_briefing(news_dict, slot="아침"):
+def generate_briefing(news_dict, slot="아침", telegram_notify_fn=None):
     """
     수집된 뉴스 딕셔너리를 받아 Gemini로 브리핑 1편 생성.
     반환: {title, lead, has_korea_news, korea_section, japan_section, labels}
     실패 시 None
+
+    telegram_notify_fn: entity 누락 경고용 send_message 함수 (선택)
     """
     # Gemini 전달 전: 연속보도(follow-up)를 후순위로 정렬 → 상한 초과 시 우선 trim
     korea_all   = sorted(news_dict.get("korea",   []), key=lambda x: x.get("is_followup", False))
@@ -189,6 +349,17 @@ def generate_briefing(news_dict, slot="아침"):
     if len(korea_all) > MAX_KOREA_FOR_GEMINI or len(general_all) > MAX_GENERAL_FOR_GEMINI:
         print(f"[Gemini] 입력 제한 적용: 한국관련 {len(korea_trim)}/{len(korea_all)}건, "
               f"일본뉴스 {len(general_trim)}/{len(general_all)}건")
+
+    # ── Phase 2: entity 추출 (batch) ──────────────────────────────────────────
+    all_trim = korea_trim + general_trim
+    print(f"[Entity] {len(all_trim)}건 entity 추출 시작...")
+    all_trim = extract_entities(all_trim)
+    korea_trim   = all_trim[:len(korea_trim)]
+    general_trim = all_trim[len(korea_trim):]
+
+    # negative constraint 생성 (한국관련 기사 entity만 사용)
+    neg_constraint = _build_negative_constraint(korea_trim)
+
     korea_text   = _format_news_for_prompt(korea_trim)
     general_text = _format_news_for_prompt(general_trim)
 
@@ -202,62 +373,116 @@ def generate_briefing(news_dict, slot="아침"):
     history_text = _format_history_for_prompt(history)
     print(f"[히스토리] 이전 브리핑 {len(history)}회 로드")
 
-    prompt = BRIEFING_PROMPT.format(
-        history=history_text,
-        korea_news=korea_text,
-        general_news=general_text,
-    )
+    def _build_prompt(extra_constraint: str = "") -> str:
+        base = BRIEFING_PROMPT.format(
+            history=history_text,
+            korea_news=korea_text,
+            general_news=general_text,
+        )
+        if neg_constraint or extra_constraint:
+            constraint_block = neg_constraint + extra_constraint
+            # [답변 형식] 앞에 constraint 삽입
+            return base.replace(
+                "[답변 형식]",
+                constraint_block + "\n[답변 형식]",
+            )
+        return base
 
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.4},
-    }
+    def _try_generate(prompt: str) -> dict | None:
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.4},
+        }
+        RETRY_WAIT = 30
+        for model in GEMINI_MODELS:
+            url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
+            for attempt in range(1, 3):
+                try:
+                    res = requests.post(url, json=payload, timeout=90)
+                    res.raise_for_status()
+                    raw  = res.json()
+                    text = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    text = _strip_json_fence(text)
+                    briefing = json.loads(text)
+                    if model != GEMINI_MODELS[0]:
+                        print(f"[Gemini] 폴백 모델 사용: {model}")
+                    return briefing
+                except Exception as e:
+                    err = str(e)
+                    is_server_err = any(c in err for c in ["503", "timed out", "timeout"])
+                    is_rate_limit = "429" in err
+                    if is_server_err and attempt == 1:
+                        print(f"[Gemini 재시도] {model} — {RETRY_WAIT}초 후 ({e})")
+                        time.sleep(RETRY_WAIT)
+                    elif is_server_err or is_rate_limit:
+                        print(f"[Gemini 폴백] {model} 실패, 60초 후 다음 모델")
+                        time.sleep(60)
+                        break
+                    else:
+                        print(f"[Gemini 오류] {e}")
+                        return None
+        print("[Gemini 오류] 모든 모델 실패")
+        return None
 
-    import time
+    # ── 1차 생성 ──────────────────────────────────────────────────────────────
+    briefing = _try_generate(_build_prompt())
+    if briefing is None:
+        return None
 
-    RETRY_WAIT = 30  # 동일 모델 재시도 대기 (초)
+    # ── entity 누락 검증 (string match, 추가 Gemini 호출 없음) ───────────────
+    briefing_text = json.dumps(briefing, ensure_ascii=False)
+    all_entities = {}
+    for a in korea_trim:
+        for k in ("people", "organizations"):
+            all_entities.setdefault(k, []).extend(a.get("entities", {}).get(k, []))
+    missing = _check_entity_missing(briefing_text, all_entities)
 
-    for model in GEMINI_MODELS:
-        url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
-        for attempt in range(1, 3):  # 모델당 최대 2회 시도
-            try:
-                res = requests.post(url, json=payload, timeout=90)
-                res.raise_for_status()
-                raw  = res.json()
-                text = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
-                text = _strip_json_fence(text)
-                briefing = json.loads(text)
+    if missing:
+        msg = f"⚠️ entity 누락 감지: {missing} — 재생성 시도"
+        print(f"[Entity 검증] {msg}")
+        if telegram_notify_fn:
+            telegram_notify_fn(f"📰 *Japan News Bot*\n{msg}")
 
-                # 타이틀을 Python(JST)에서 직접 덮어씀 → Gemini 월(月) 할루시네이션 방지
-                gemini_subtitle = briefing.get("title", "주요 뉴스")
-                briefing["title"] = f"{today} 일본 {slot} 뉴스 브리핑: {gemini_subtitle}"
+        # ── 2차 생성: 누락 entity를 강조한 추가 제약 ──────────────────────
+        extra = f"\n🚨 특히 다음 항목은 반드시 본문에 포함: {', '.join(missing)}\n"
+        briefing2 = _try_generate(_build_prompt(extra_constraint=extra))
+        if briefing2:
+            briefing = briefing2
+            # 재검증
+            briefing_text2 = json.dumps(briefing2, ensure_ascii=False)
+            still_missing = _check_entity_missing(briefing_text2, all_entities)
+            if still_missing and telegram_notify_fn:
+                telegram_notify_fn(
+                    f"📰 *Japan News Bot*\n⚠️ 재생성 후에도 누락: {still_missing} — 현재 버전으로 게시합니다."
+                )
+            elif not still_missing:
+                print("[Entity 검증] 재생성 후 누락 해소")
 
-                if model != GEMINI_MODELS[0]:
-                    print(f"[Gemini] 폴백 모델 사용: {model}")
-                print(f"[Gemini] 브리핑 생성 완료: {briefing['title']}")
+    # ── JMA 날씨 블록 추가 ───────────────────────────────────────────────────
+    try:
+        from weather_jma import get_today_weather, format_weather_block
+        weather = get_today_weather()
+        briefing["_weather"] = weather
+        briefing["_weather_block"] = format_weather_block(weather, slot) if weather else ""
+        if weather:
+            print("[JMA] 날씨 블록 생성 완료")
+        else:
+            print("[JMA] 날씨 데이터 없음 — 블록 생략")
+    except Exception as e:
+        print(f"[JMA] 날씨 통합 오류: {e}")
+        briefing["_weather"] = None
+        briefing["_weather_block"] = ""
 
-                # 이번 브리핑 헤드라인을 히스토리에 저장
-                _save_story_history(briefing, today, slot)
+    # ── 타이틀 덮어쓰기 (Gemini 날짜 할루시네이션 방지) ─────────────────────
+    gemini_subtitle = briefing.get("title", "주요 뉴스")
+    briefing["title"] = f"{today} 일본 {slot} 뉴스 브리핑: {gemini_subtitle}"
+    print(f"[Gemini] 브리핑 생성 완료: {briefing['title']}")
 
-                return briefing
+    # entity 메타데이터를 briefing에 저장 (Wiki 적재용)
+    briefing["_korea_articles"] = korea_trim
+    briefing["_general_articles"] = general_trim
 
-            except Exception as e:
-                err = str(e)
-                is_server_err = any(code in err for code in ["503", "timed out", "timeout"])
-                is_rate_limit = "429" in err
+    # 이번 브리핑 헤드라인을 히스토리에 저장
+    _save_story_history(briefing, today, slot)
 
-                if is_server_err and attempt == 1:
-                    # 동일 모델 1회 재시도
-                    print(f"[Gemini 재시도] {model} — {RETRY_WAIT}초 후 재시도 ({e})")
-                    time.sleep(RETRY_WAIT)
-                elif is_server_err or is_rate_limit:
-                    # 다음 모델로 폴백 (60초 대기 후)
-                    print(f"[Gemini 폴백] {model} 실패({e}), 60초 후 다음 모델 시도")
-                    time.sleep(60)
-                    break
-                else:
-                    print(f"[Gemini 오류] 브리핑 생성 실패: {e}")
-                    return None
-
-    print("[Gemini 오류] 모든 모델 실패")
-    return None
+    return briefing

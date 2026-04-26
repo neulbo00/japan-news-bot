@@ -6,6 +6,12 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 
 try:
+    import trafilatura
+    _TRAFILATURA_OK = True
+except ImportError:
+    _TRAFILATURA_OK = False
+
+try:
     from zoneinfo import ZoneInfo
     JST = ZoneInfo("Asia/Tokyo")
 except ImportError:
@@ -70,6 +76,23 @@ RSS_SOURCES = [
     {"name": "\uc544\uc0ac\ud788\uc2e0\ubb38",   "url": "https://www.asahi.com/rss/asahi/newsheadlines.rdf",                                       "korea_feed": False},
     {"name": "\uc9c0\uc9c0\ud1b5\uc2e0",        "url": "https://www.jiji.com/rss/ranking.rdf",                                                      "korea_feed": False},
 ]
+
+
+def fetch_full_text(url: str) -> str | None:
+    """trafilatura로 기사 본문 추출. 실패 시 None 반환."""
+    if not _TRAFILATURA_OK:
+        return None
+    try:
+        downloaded = trafilatura.fetch_url(
+            url,
+            config=trafilatura.settings.use_config(),
+        )
+        if downloaded is None:
+            return None
+        text = trafilatura.extract(downloaded, include_comments=False, include_tables=False)
+        return text if text and len(text) > 50 else None
+    except Exception:
+        return None
 
 
 def _is_korea_related(text):
@@ -218,15 +241,18 @@ def _parse_rss(source, cutoff_utc):
                 skipped_old += 1
                 continue
 
+            full_text = fetch_full_text(link)
+            search_text = title + desc + (full_text or "")
             result.append({
-                "source":   source["name"],
-                "title":    title,
-                "content":  desc,
-                "link":     link,
-                "pubDate":  pub,
-                "pub_dt":   pub_dt,
-                "id":       hashlib.md5(link.encode()).hexdigest(),
-                "is_korea": source["korea_feed"] or _is_korea_related(title + desc),
+                "source":    source["name"],
+                "title":     title,
+                "content":   desc,
+                "full_text": full_text,
+                "link":      link,
+                "pubDate":   pub,
+                "pub_dt":    pub_dt,
+                "id":        hashlib.md5(link.encode()).hexdigest(),
+                "is_korea":  source["korea_feed"] or _is_korea_related(search_text),
             })
         if skipped_old:
             print(f"  [{source['name']}] \uc2dc\uac04 \ud544\ud130: {skipped_old}\uac74 \uc81c\uc678 (\ucef7\uc624\ud504 {HOURS_WINDOW}\uc2dc\uac04)")
