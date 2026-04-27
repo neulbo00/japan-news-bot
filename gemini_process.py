@@ -438,10 +438,7 @@ def generate_briefing(news_dict, slot="아침", telegram_notify_fn=None):
     missing = _check_entity_missing(briefing_text, all_entities)
 
     if missing:
-        msg = f"⚠️ entity 누락 감지: {missing} — 재생성 시도"
-        print(f"[Entity 검증] {msg}")
-        if telegram_notify_fn:
-            telegram_notify_fn(f"📰 *Japan News Bot*\n{msg}")
+        print(f"[Entity 검증] entity 누락 감지: {missing} — 재생성 시도")
 
         # ── 2차 생성: 누락 entity를 강조한 추가 제약 ──────────────────────
         extra = f"\n🚨 특히 다음 항목은 반드시 본문에 포함: {', '.join(missing)}\n"
@@ -451,10 +448,8 @@ def generate_briefing(news_dict, slot="아침", telegram_notify_fn=None):
             # 재검증
             briefing_text2 = json.dumps(briefing2, ensure_ascii=False)
             still_missing = _check_entity_missing(briefing_text2, all_entities)
-            if still_missing and telegram_notify_fn:
-                telegram_notify_fn(
-                    f"📰 *Japan News Bot*\n⚠️ 재생성 후에도 누락: {still_missing} — 현재 버전으로 게시합니다."
-                )
+            if still_missing:
+                print(f"[Entity 검증] 재생성 후에도 누락: {still_missing} — 현재 버전으로 게시합니다.")
             elif not still_missing:
                 print("[Entity 검증] 재생성 후 누락 해소")
 
