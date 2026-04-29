@@ -1,7 +1,15 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# .env 우선순위: .secrets (OneDrive 외부) → 프로젝트 로컬
+_SECRETS_ENV = Path.home() / ".secrets" / "japan-news-bot.env"
+_LOCAL_ENV   = Path(__file__).resolve().parent / ".env"
+
+if _SECRETS_ENV.exists():
+    load_dotenv(_SECRETS_ENV)
+else:
+    load_dotenv(_LOCAL_ENV)
 
 # Gemini AI
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

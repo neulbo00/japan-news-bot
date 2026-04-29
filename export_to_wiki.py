@@ -18,8 +18,8 @@ except ImportError:
     import pytz
     JST = pytz.timezone("Asia/Tokyo")
 
-WIKI_NEWS_ROOT    = Path(r"C:\Users\neulb\OneDrive\Documents\wiki\raw\news")
-WIKI_KR_CORR_ROOT = Path(r"C:\Users\neulb\OneDrive\Documents\wiki\raw\news_korean")
+WIKI_NEWS_ROOT    = Path(r"C:\Users\neulb\OneDrive\Documents\wiki\public\news_japan")
+WIKI_KR_CORR_ROOT = Path(r"C:\Users\neulb\OneDrive\Documents\wiki\public\news_korean")
 IMPORTANCE_THRESHOLD    = 4  # 일본 매체 기사: 이 값 이상만 단독 .md 파일 생성
 KR_IMPORTANCE_THRESHOLD = 3  # 한국 특파원 기사: 한 단계 낮음 (차별화 가치 반영)
 

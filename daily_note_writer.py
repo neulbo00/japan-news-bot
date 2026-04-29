@@ -16,7 +16,7 @@ except ImportError:
     import pytz
     JST = pytz.timezone("Asia/Tokyo")
 
-DAILY_DIR = Path(r"C:\Users\neulb\OneDrive\Documents\wiki\Daily")
+DAILY_DIR = Path(r"C:\Users\neulb\OneDrive\Documents\wiki\private\daily")
 IMPORTANCE_THRESHOLD = 4
 
 WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
@@ -35,8 +35,8 @@ def _article_line(article: dict, date_str: str) -> str:
     if imp >= IMPORTANCE_THRESHOLD:
         from export_to_wiki import _slugify
         slug = _slugify(title)
-        # wiki link 형식: [[News/2026-04-27/slug]]
-        link = f"[[News/{date_str}/{slug}]]"
+        # wiki link 형식: [[public/news_japan/2026-04-27/slug]]
+        link = f"[[public/news_japan/{date_str}/{slug}]]"
         return f"- {link} {_importance_stars(imp)}"
     else:
         return f"- {title}"
@@ -59,7 +59,7 @@ def _kr_article_line(article: dict, date_str: str) -> str:
     corr   = article.get("correspondent") or ""
     source = article.get("source", "")
     slug   = _slugify(title)
-    link   = f"[[news_korean/{date_str}/{slug}]]"
+    link   = f"[[public/news_korean/{date_str}/{slug}]]"
     suffix = f"({source}" + (f" / {corr}" if corr else "") + ")"
     return f"- {link} {suffix}"
 
