@@ -18,8 +18,10 @@ except ImportError:
     import pytz
     JST = pytz.timezone("Asia/Tokyo")
 
-WIKI_NEWS_ROOT = Path(r"C:\Users\neulb\OneDrive\Documents\wiki\raw\news")
-IMPORTANCE_THRESHOLD = 4  # 이 값 이상만 단독 .md 파일 생성
+WIKI_NEWS_ROOT    = Path(r"C:\Users\neulb\OneDrive\Documents\wiki\raw\news")
+WIKI_KR_CORR_ROOT = Path(r"C:\Users\neulb\OneDrive\Documents\wiki\raw\news_korean")
+IMPORTANCE_THRESHOLD    = 4  # 일본 매체 기사: 이 값 이상만 단독 .md 파일 생성
+KR_IMPORTANCE_THRESHOLD = 3  # 한국 특파원 기사: 한 단계 낮음 (차별화 가치 반영)
 
 
 def _slugify(title: str) -> str:
@@ -187,6 +189,118 @@ def export_briefing_to_wiki(briefing: dict, news_dict: dict):
         # 레거시 폴백: 브리핑 텍스트 1건 저장
         _legacy_export(briefing, news_dict, date_str, slot)
         return False
+
+
+def _format_kr_frontmatter(article: dict, date_str: str, slot: str) -> str:
+    """한국 특파원 기사 전용 frontmatter (is_korean_perspective 플래그 포함)."""
+    ent = article.get("entities", {})
+    cls = article.get("classification", {})
+    people = _wiki_links(ent.get("people", []))
+    orgs   = _wiki_links(ent.get("organizations", []))
+    places = _wiki_links(ent.get("places", []))
+    topics = _wiki_links(ent.get("topics", []))
+    imp    = ent.get("importance", 4)
+
+    # classification category 축약
+    raw_cat = cls.get("category", "")
+    cat_map = {
+        "value_korean_perspective": "korea_perspective",
+        "value_field_report":       "field_report",
+    }
+    cat = cat_map.get(raw_cat, raw_cat)
+
+    lines = [
+        "---",
+        f"date: {date_str}",
+        f"slot: {slot}",
+        f"source: {article.get('source', '')}",
+        f"correspondent: {article.get('correspondent') or ''}",
+        f"url: {article.get('link', '')}",
+        f"category: {cat}",
+        f"classifier_confidence: {cls.get('confidence', 0.0):.2f}",
+        f"importance: {imp}",
+        "is_korean_perspective: true",
+    ]
+    if people:
+        lines.append(f"people: {json.dumps(people, ensure_ascii=False)}")
+    if orgs:
+        lines.append(f"organizations: {json.dumps(orgs, ensure_ascii=False)}")
+    if places:
+        lines.append(f"places: {json.dumps(places, ensure_ascii=False)}")
+    if topics:
+        lines.append(f"topics: {json.dumps(topics, ensure_ascii=False)}")
+    lines.append("---")
+    return "\n".join(lines)
+
+
+def _build_kr_article_md(article: dict, date_str: str, slot: str) -> str:
+    """한국 특파원 기사 1건 → .md 본문."""
+    ent  = article.get("entities", {})
+    cls  = article.get("classification", {})
+    title = article.get("title", "")
+    link  = article.get("link", "")
+    source = article.get("source", "")
+    corr   = article.get("correspondent") or ""
+
+    body_raw = (article.get("full_text") or article.get("content") or "")[:1500]
+    body = _inject_wiki_links(body_raw, ent) if body_raw else ""
+
+    fm = _format_kr_frontmatter(article, date_str, slot)
+    byline = f"*{source}*" + (f" / {corr} 특파원" if corr else "")
+    reason = cls.get("reason", "")
+
+    parts = [
+        fm,
+        "",
+        f"# {title}",
+        f"> 출처: [{byline}]({link})",
+    ]
+    if reason:
+        parts.append(f"> 분류 근거: {reason}")
+    parts.append("")
+    if body:
+        parts += [body, ""]
+    parts += ["---", f"[원문 링크]({link})"]
+    return "\n".join(parts)
+
+
+def export_korean_correspondent_to_wiki(articles: list, date_str: str, slot: str) -> dict:
+    """
+    Phase 6 — 한국 특파원 기사 Wiki 적재.
+    경로: wiki/raw/news_korean/YYYY-MM-DD/{slug}.md
+    importance >= KR_IMPORTANCE_THRESHOLD 기사만 저장.
+
+    Returns: {"saved": [path...], "low_importance": [article...]}
+    """
+    if not articles:
+        return {"saved": [], "low_importance": []}
+
+    directory = WIKI_KR_CORR_ROOT / date_str
+    directory.mkdir(parents=True, exist_ok=True)
+
+    saved          = []
+    low_importance = []
+
+    for article in articles:
+        ent = article.get("entities", {})
+        imp = ent.get("importance", 4)
+
+        if imp < KR_IMPORTANCE_THRESHOLD:
+            low_importance.append(article)
+            continue
+
+        slug = _slugify(article.get("title", "untitled"))
+        path = _make_unique_path(directory, slug)
+        content = _build_kr_article_md(article, date_str, slot)
+        path.write_text(content, encoding="utf-8")
+        saved.append(str(path))
+
+    if saved:
+        print(f"[Wiki/KR] {len(saved)}건 적재 완료 → {directory}")
+    if low_importance:
+        print(f"[Wiki/KR] importance < {KR_IMPORTANCE_THRESHOLD}: {len(low_importance)}건 스킵")
+
+    return {"saved": saved, "low_importance": low_importance}
 
 
 def _legacy_export(briefing: dict, news_dict: dict, date_str: str, slot: str):

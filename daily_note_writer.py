@@ -52,6 +52,43 @@ def _build_news_section(articles: list, label: str, date_str: str) -> list:
     return lines
 
 
+def _kr_article_line(article: dict, date_str: str) -> str:
+    """한국 특파원 기사 1건 → daily note 한 줄 (news_korean/ 경로)."""
+    from export_to_wiki import _slugify
+    title  = article.get("title", "")
+    corr   = article.get("correspondent") or ""
+    source = article.get("source", "")
+    slug   = _slugify(title)
+    link   = f"[[news_korean/{date_str}/{slug}]]"
+    suffix = f"({source}" + (f" / {corr}" if corr else "") + ")"
+    return f"- {link} {suffix}"
+
+
+def _build_korean_correspondent_section(articles: list, date_str: str) -> list[str]:
+    """한국 특파원 기사를 분류별로 묶어 섹션 줄 목록 반환. 0건이면 빈 리스트."""
+    if not articles:
+        return []
+
+    perspective = [a for a in articles if a.get("classification", {}).get("category") == "value_korean_perspective"]
+    field       = [a for a in articles if a.get("classification", {}).get("category") == "value_field_report"]
+
+    lines = ["## 🇰🇷 한국 시각의 일본 (도쿄특파원)", ""]
+
+    if perspective:
+        lines.append("### 한일관계·한국 영향")
+        for a in perspective:
+            lines.append(_kr_article_line(a, date_str))
+        lines.append("")
+
+    if field:
+        lines.append("### 현장 취재")
+        for a in field:
+            lines.append(_kr_article_line(a, date_str))
+        lines.append("")
+
+    return lines
+
+
 def _build_morning_note(date_str: str, weekday: str,
                         briefing: dict, weather_block: str) -> str:
     """07시: 데일리 노트 초기 생성."""
@@ -92,6 +129,19 @@ def _build_morning_note(date_str: str, weekday: str,
         "<!-- 저녁 브리핑 후 자동 추가 -->",
         "",
     ]
+
+    # Phase 6: 한국 특파원 섹션 (아침 슬롯 적재분)
+    kr_articles = briefing.get("_kr_correspondent_articles", [])
+    kr_section  = _build_korean_correspondent_section(kr_articles, date_str)
+    if kr_section:
+        lines += kr_section
+    else:
+        # 플레이스홀더 (저녁에도 0건이면 그대로 남음)
+        lines += [
+            "## 🇰🇷 한국 시각의 일본 (도쿄특파원)",
+            "<!-- Phase 6: 한국 특파원 기사 자동 추가 -->",
+            "",
+        ]
 
     # 향후 확장 자리
     lines += [
@@ -137,6 +187,19 @@ def _update_evening_note(content: str, date_str: str, briefing: dict) -> str:
         general_block,
         content,
     )
+
+    # Phase 6: 저녁에 추가된 한국 특파원 기사 업데이트
+    kr_articles = briefing.get("_kr_correspondent_articles", [])
+    if kr_articles:
+        kr_section  = _build_korean_correspondent_section(kr_articles, date_str)
+        kr_text     = "\n".join(kr_section)
+        # 아침에 생성된 플레이스홀더 교체 (있으면)
+        content = re.sub(
+            r"## 🇰🇷 한국 시각의 일본 \(도쿄특파원\)\n<!-- Phase 6: 한국 특파원 기사 자동 추가 -->",
+            kr_text.rstrip(),
+            content,
+        )
+
     return content
 
 

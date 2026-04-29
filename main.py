@@ -46,9 +46,47 @@ def run_pipeline():
     # 5. Daily Note 생성/업데이트 (Phase 5)
     from daily_note_writer import write_daily_note
     note_slot = "morning" if slot == "아침" else "evening"
+
+    # Phase 6: 한국 도쿄특파원 기사 수집 → 분류 → Wiki 적재 → Daily Note 통합
+    try:
+        from korean_correspondent_filter import fetch_korean_correspondent_news
+        from correspondent_classifier import classify_correspondent_articles
+        from export_to_wiki import export_korean_correspondent_to_wiki
+
+        kr_raw = fetch_korean_correspondent_news()
+        if kr_raw:
+            cls_result = classify_correspondent_articles(kr_raw)
+            value_articles = cls_result["value"]
+
+            if value_articles:
+                # entity 추출 (Phase 2 로직 재사용)
+                from gemini_process import extract_entities
+                value_articles = extract_entities(value_articles)
+
+                # Wiki 적재
+                from datetime import datetime
+                try:
+                    from zoneinfo import ZoneInfo
+                    _JST = ZoneInfo("Asia/Tokyo")
+                except ImportError:
+                    import pytz
+                    _JST = pytz.timezone("Asia/Tokyo")
+                date_str_p6 = datetime.now(tz=_JST).strftime("%Y-%m-%d")
+                export_korean_correspondent_to_wiki(value_articles, date_str_p6, note_slot)
+
+                # Daily Note에 전달
+                briefing["_kr_correspondent_articles"] = value_articles
+                print(f"[Phase 6] Wiki 적재 완료: {len(value_articles)}건")
+            else:
+                print("[Phase 6] 적재 대상 기사 없음 (모두 redundant/uncertain)")
+        else:
+            print("[Phase 6] 도쿄 특파원 기사 수집 결과 없음")
+    except Exception as e:
+        print(f"[Phase 6] 오류 (파이프라인 계속): {e}")
+
     write_daily_note(briefing, slot=note_slot)
 
-    # 6. 텔레그램 알림
+    # 7. 텔레그램 알림 (브리핑 게시 결과만 — Phase 6 기사는 Wiki only)
     if post_url:
         notify_done([{"title": briefing.get("title", "뉴스 브리핑"), "url": post_url}])
         print(f"[완료] 브리핑 게시 성공")
