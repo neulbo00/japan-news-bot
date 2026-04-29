@@ -25,8 +25,8 @@ GEMINI_MODELS = [
 
 # Gemini에 전달하는 기사 수 상한 (payload 과부하 방지)
 # 저녁 브리핑은 하루치 기사가 쌓여 50~130건에 달해 90초 timeout 유발
-MAX_KOREA_FOR_GEMINI   = 20  # 한국관련 최대 20건
-MAX_GENERAL_FOR_GEMINI = 40  # 일반뉴스 최대 40건
+MAX_KOREA_FOR_GEMINI   = 35  # 한국관련 최대 35건 (기존 20 → 증량)
+MAX_GENERAL_FOR_GEMINI = 70  # 일반뉴스 최대 70건 (기존 40 → 증량)
 
 BRIEFING_PROMPT = """
 당신은 도쿄에서 활동하는 한국인 저널리스트로서 일본 뉴스를 한국어로 정리하는 뉴스 에디터입니다.
@@ -66,6 +66,10 @@ BRIEFING_PROMPT = """
 4. 중복·유사 기사는 하나로 통합
 5. 리드: 이날 핵심을 1~2문장으로, 간결하게
 6. 기사 분량: 한국관련 3~4문장 / 일반뉴스 1~2문장
+7. 기사 건수:
+   - korea_section: 선정 기준을 통과한 기사 전부 포함. 최소 3건, 최대 8건
+   - japan_section: 중복·유사 통합 후 최소 8건, 최대 15건 포함
+   - 아이템이 부족해도 억지로 늘리지 말고, 충분하면 줄이지도 말 것
 7. 시제는 브리핑 시점 기준으로 자연스럽게:
    - 진행 중 → "~하고 있다", "~중이다"
    - 완료 → "~했다", "~한 것으로 나타났다"
@@ -391,14 +395,17 @@ def generate_briefing(news_dict, slot="아침", telegram_notify_fn=None):
     def _try_generate(prompt: str) -> dict | None:
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.4},
+            "generationConfig": {
+                "temperature": 0.4,
+                "maxOutputTokens": 8192,   # 브리핑 아이템 수 증가에 대응
+            },
         }
         RETRY_WAIT = 30
         for model in GEMINI_MODELS:
             url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
             for attempt in range(1, 3):
                 try:
-                    res = requests.post(url, json=payload, timeout=90)
+                    res = requests.post(url, json=payload, timeout=150)
                     res.raise_for_status()
                     raw  = res.json()
                     text = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
