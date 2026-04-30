@@ -63,8 +63,7 @@ def run_pipeline():
                 from gemini_process import extract_entities
                 value_articles = extract_entities(value_articles)
 
-                # Wiki 적재
-                from datetime import datetime
+                # Wiki 적재 (datetime은 모듈 상단에서 이미 import됨)
                 try:
                     from zoneinfo import ZoneInfo
                     _JST = ZoneInfo("Asia/Tokyo")

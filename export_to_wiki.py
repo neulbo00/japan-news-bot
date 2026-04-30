@@ -267,7 +267,7 @@ def _build_kr_article_md(article: dict, date_str: str, slot: str) -> str:
 def export_korean_correspondent_to_wiki(articles: list, date_str: str, slot: str) -> dict:
     """
     Phase 6 — 한국 특파원 기사 Wiki 적재.
-    경로: wiki/raw/news_korean/YYYY-MM-DD/{slug}.md
+    경로: wiki/public/news_korean/YYYY-MM-DD/{slug}.md (PIS v1.0)
     importance >= KR_IMPORTANCE_THRESHOLD 기사만 저장.
 
     Returns: {"saved": [path...], "low_importance": [article...]}

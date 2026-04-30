@@ -1,7 +1,7 @@
 """
 Daily Note 자동 생성 모듈 (Phase 5).
 
-경로: C:\\Users\\neulb\\OneDrive\\Documents\\wiki\\Daily\\YYYY-MM-DD.md
+경로: C:\\Users\\neulb\\OneDrive\\Documents\\wiki\\private\\daily\\YYYY-MM-DD.md (PIS v1.0)
 07시 슬롯: 파일 생성 (날씨 + 아침 뉴스)
 19시 슬롯: 같은 파일 업데이트 (저녁 뉴스 추가)
 """
