@@ -19,7 +19,7 @@ MAX_HISTORY_ENTRIES = 4  # 최근 4회 = 2일분
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 # 모델 우선순위: 앞에서부터 순서대로 시도, 503/429 시 다음 모델로 폴백
 GEMINI_MODELS = [
-    "gemini-3.1-flash-lite-preview",  # 1순위: 무료 RPD 500
+    "gemini-3.1-flash-lite",  # 1순위: 무료 RPD 500
     "gemini-2.5-flash",               # 폴백: 503/timeout 시 자동 전환
 ]
 

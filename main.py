@@ -90,6 +90,7 @@ def run_pipeline():
         notify_done([{"title": briefing.get("title", "뉴스 브리핑"), "url": post_url}])
         print(f"[완료] 브리핑 게시 성공")
     else:
+        send_message("📰 *Japan News Bot*\n⚠️ Blogger 게시(발행)에 실패했습니다. 구글 토큰 만료나 권한 오류일 수 있으니 로그를 확인해주세요.")
         print(f"[완료] 브리핑 게시 실패")
 
 

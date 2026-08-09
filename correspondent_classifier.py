@@ -24,7 +24,7 @@ from config import GEMINI_API_KEY
 
 GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta/models"
 GEMINI_MODELS = [
-    "gemini-3.1-flash-lite-preview",
+    "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
 ]
 
